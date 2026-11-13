@@ -1,0 +1,61 @@
+name: Build Notaria
+
+on:
+  push:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          submodules: true
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Set up Gradle (with cache)
+        uses: gradle/actions/setup-gradle@v4
+
+      # Release signing. Add these 4 repository secrets once and every build will be
+      # signed with the same key, so updates install over the previous version:
+      #   NOTARIA_KEYSTORE_BASE64 (base64 of your .jks), NOTARIA_KEYSTORE_PASSWORD,
+      #   NOTARIA_KEY_ALIAS, NOTARIA_KEY_PASSWORD
+      # If they are missing, a throwaway key is generated so the build still works,
+      # but each build is then signed differently and can't update the previous one.
+      - name: Prepare signing key
+        env:
+          KS_B64: ${{ secrets.NOTARIA_KEYSTORE_BASE64 }}
+          KS_PASS: ${{ secrets.NOTARIA_KEYSTORE_PASSWORD }}
+          KS_ALIAS: ${{ secrets.NOTARIA_KEY_ALIAS }}
+          KEY_PASS: ${{ secrets.NOTARIA_KEY_PASSWORD }}
+        run: |
+          if [ -n "$KS_B64" ]; then
+            echo "$KS_B64" | base64 -d > "$RUNNER_TEMP/notaria.jks"
+            echo "STORE_PASSWORD=$KS_PASS" >> "$GITHUB_ENV"
+            echo "KEY_ALIAS=$KS_ALIAS" >> "$GITHUB_ENV"
+            echo "KEY_PASSWORD=$KEY_PASS" >> "$GITHUB_ENV"
+          else
+            keytool -genkeypair -keystore "$RUNNER_TEMP/notaria.jks" -alias notaria \
+              -keyalg RSA -keysize 2048 -validity 10000 \
+              -storepass notaria-temp -keypass notaria-temp -dname "CN=Notaria"
+            echo "STORE_PASSWORD=notaria-temp" >> "$GITHUB_ENV"
+            echo "KEY_ALIAS=notaria" >> "$GITHUB_ENV"
+            echo "KEY_PASSWORD=notaria-temp" >> "$GITHUB_ENV"
+          fi
+          echo "STORE_FILE=$RUNNER_TEMP/notaria.jks" >> "$GITHUB_ENV"
+
+      - name: Build release APK
+        run: ./gradlew assembleRelease
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: Notaria-apk
+          path: app/build/outputs/apk/release/*.apk
+          retention-days: 30
