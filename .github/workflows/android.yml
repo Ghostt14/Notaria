@@ -50,6 +50,9 @@ jobs:
           fi
           echo "STORE_FILE=$RUNNER_TEMP/notaria.jks" >> "$GITHUB_ENV"
 
+      - name: Make gradlew executable
+        run: chmod +x gradlew
+
       - name: Build release APK
         run: ./gradlew assembleRelease
 
