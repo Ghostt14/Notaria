@@ -775,4 +775,10 @@
     <string name="storage_add_storage_more">Más opciones (FTP, SFTP, WebDAV…)</string>
     <string name="home_recent">Recientes</string>
     <string name="home_network">NAS y nube</string>
+    <string name="file_list_chip_name">Nombre</string>
+    <string name="file_list_chip_type">Tipo</string>
+    <string name="file_list_chip_size">Tamaño</string>
+    <string name="file_list_chip_date">Fecha</string>
+    <string name="file_list_chip_list">Lista</string>
+    <string name="file_list_chip_grid">Cuadrícula</string>
 </resources>

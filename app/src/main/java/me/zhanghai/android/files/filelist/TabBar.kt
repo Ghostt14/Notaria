@@ -127,7 +127,10 @@ class FileTabBar @JvmOverloads constructor(
                 )
                 binding.closeButton.imageTintList = buttonColor
                 binding.closeButton.isVisible = items.size > 1
-                binding.closeButton.setOnClickListener { onClose(item.id) }
+                binding.closeButton.setOnClickListener {
+                    binding.closeButton.isEnabled = false
+                    animateClose(binding.root) { onClose(item.id) }
+                }
                 binding.root.setOnClickListener { onSelect(item.id) }
                 binding.root.setOnLongClickListener { beginDrag(it, item.id) }
                 binding.root.setOnTouchListener { view, event -> onDragTouch(view, event) }
@@ -158,6 +161,31 @@ class FileTabBar @JvmOverloads constructor(
                     .apply { marginEnd = (4 * density).toInt() }
             )
             invalidate()
+        }
+
+        // The closed tab shrinks and fades out, then the tab is actually removed; if it was the
+        // selected one the activity then switches to a neighbor.
+        private fun animateClose(tab: View, onEnd: () -> Unit) {
+            val startWidth = tab.width.coerceAtLeast(1)
+            val startMargin = (tab.layoutParams as MarginLayoutParams).marginEnd
+            android.animation.ValueAnimator.ofFloat(1f, 0f).apply {
+                duration = 180
+                interpolator = android.view.animation.AccelerateDecelerateInterpolator()
+                addUpdateListener {
+                    val fraction = it.animatedValue as Float
+                    val params = tab.layoutParams as MarginLayoutParams
+                    params.width = (startWidth * fraction).toInt().coerceAtLeast(0)
+                    params.marginEnd = (startMargin * fraction).toInt()
+                    tab.alpha = fraction
+                    tab.layoutParams = params
+                }
+                addListener(object : android.animation.AnimatorListenerAdapter() {
+                    override fun onAnimationEnd(animation: android.animation.Animator) {
+                        onEnd()
+                    }
+                })
+                start()
+            }
         }
 
         // --- Drag to rearrange ---

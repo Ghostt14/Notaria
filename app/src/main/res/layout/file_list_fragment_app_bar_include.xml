@@ -72,6 +72,7 @@
             <!-- Sort and view: always reachable, also while searching. -->
             <ImageButton
                 android:id="@+id/sortButton"
+                android:visibility="gone"
                 android:layout_width="48dp"
                 android:layout_height="48dp"
                 android:layout_marginEnd="8dp"

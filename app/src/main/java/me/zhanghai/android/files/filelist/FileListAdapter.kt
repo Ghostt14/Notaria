@@ -251,6 +251,10 @@ class FileListAdapter(
         holder.itemLayout.isChecked = checked
         // A square check box takes the place of the icon while selected.
         holder.iconLayout.findViewById<View>(R.id.checkImage)?.isVisible = checked
+        holder.iconImage.alpha = if (checked) 0f else 1f
+        holder.thumbnailImage.alpha = if (checked) 0f else 1f
+        holder.appIconBadgeImage.alpha = if (checked) 0f else 1f
+        holder.badgeImage.alpha = if (checked) 0f else 1f
         holder.nameText.apply {
             if (isSingleLineCompat) {
                 val nameEllipsize = nameEllipsize
@@ -452,6 +456,11 @@ class FileListAdapter(
     }
 
     private fun applyScale(holder: ViewHolder) {
+        // Changing text sizes forces a re-measure, so only do it when the scale changed.
+        if (holder.appliedScale == scale) {
+            return
+        }
+        holder.appliedScale = scale
         val factor = scale / 100f
         holder.nameText.setTextSize(
             android.util.TypedValue.COMPLEX_UNIT_PX, holder.baseNameTextSize * factor
@@ -523,6 +532,7 @@ class FileListAdapter(
         val menuButton: ImageButton
     ) : RecyclerView.ViewHolder(root) {
         var countJob: kotlinx.coroutines.Job? = null
+        var appliedScale = -1
         val baseNameTextSize: Float = nameText.textSize
         val baseDescriptionTextSize: Float = descriptionText?.textSize ?: nameText.textSize * 0.8f
 

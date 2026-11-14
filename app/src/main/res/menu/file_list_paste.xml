@@ -18,15 +18,15 @@
 
     <item
         android:id="@+id/action_create_directory_paste"
-        android:icon="@drawable/create_folder_icon_control_normal_24dp"
+        android:icon="@drawable/copy_clipboard_icon_control_normal_24dp"
         android:orderInCategory="100"
-        android:title="@string/file_create_directory_title"
+        android:title="@string/file_list_copy_to_clipboard"
         app:showAsAction="always" />
 
     <item
         android:id="@+id/action_cancel_paste"
-        android:icon="@drawable/copy_clipboard_icon_control_normal_24dp"
+        android:icon="@drawable/close_icon_control_normal_24dp"
         android:orderInCategory="100"
-        android:title="@string/file_list_copy_to_clipboard"
+        android:title="@android:string/cancel"
         app:showAsAction="always" />
 </menu>

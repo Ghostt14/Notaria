@@ -315,6 +315,9 @@ class FileListFragment : Fragment(), BreadcrumbLayout.Listener, FileListAdapter.
         adapter = FileListAdapter(this)
         binding.recyclerView.adapter = adapter
         binding.recyclerView.addItemDecoration(DateHeaderDecoration(requireContext(), adapter))
+        // Keep more rows around so dragging the fast-scroll thumb binds fewer new rows.
+        binding.recyclerView.setItemViewCacheSize(20)
+        binding.recyclerView.recycledViewPool.setMaxRecycledViews(0, 30)
         val fastScroller = ThemedFastScroller.create(binding.recyclerView)
         binding.recyclerView.setOnApplyWindowInsetsListener(
             ScrollingViewOnApplyWindowInsetsListener(binding.recyclerView, fastScroller)
@@ -587,6 +590,23 @@ class FileListFragment : Fragment(), BreadcrumbLayout.Listener, FileListAdapter.
         }
     }
 
+    // By default the toolbar hides every other action while the search field is open; ask it
+    // not to (this is a library-internal switch, hence the reflection).
+    private fun keepToolbarItemsWhileSearching() {
+        binding.toolbar.post {
+            for (i in 0..<binding.toolbar.childCount) {
+                val child = binding.toolbar.getChildAt(i)
+                if (child is androidx.appcompat.widget.ActionMenuView) {
+                    runCatching {
+                        child.javaClass.getMethod(
+                            "setExpandedActionViewsExclusive", Boolean::class.javaPrimitiveType
+                        ).invoke(child, false)
+                    }
+                }
+            }
+        }
+    }
+
     private fun collapseSearchView() {
         if (this::menuBinding.isInitialized && menuBinding.searchItem.isActionViewExpanded) {
             menuBinding.searchItem.collapseActionView()
@@ -611,6 +631,10 @@ class FileListFragment : Fragment(), BreadcrumbLayout.Listener, FileListAdapter.
                         !Settings.FILE_LIST_PERSISTENT_DRAWER_OPEN.valueCompat
                     )
                 }
+                true
+            }
+            R.id.action_sort_view -> {
+                showSortViewSheet()
                 true
             }
             R.id.action_view_adjust -> {
@@ -861,6 +885,9 @@ class FileListFragment : Fragment(), BreadcrumbLayout.Listener, FileListAdapter.
             TrashManager.isInTrash(viewModel.currentPath)
         menuBinding.viewItem.isVisible = !searchViewExpanded && !viewModel.isHome && !viewModel.isSettings
         menuBinding.searchItem.isVisible = !viewModel.isHome && !viewModel.isSettings
+        // Sort and view stays available while searching.
+        menuBinding.sortViewItem.isVisible = !viewModel.isHome && !viewModel.isSettings
+        keepToolbarItemsWhileSearching()
         if (searchViewExpanded) {
             return
         }
@@ -1238,43 +1265,32 @@ class FileListFragment : Fragment(), BreadcrumbLayout.Listener, FileListAdapter.
             )
         })
 
-        // Sort by.
+        // Sort by: readable, wrapping chips.
         content.addView(label(R.string.file_list_sort_by))
         val sortOptions = viewModel.sortOptions
-        val sortGroup = com.google.android.material.button.MaterialButtonToggleGroup(context).apply {
+        fun chipGroup() = com.google.android.material.chip.ChipGroup(context).apply {
             isSingleSelection = true
             isSelectionRequired = true
+            chipSpacingHorizontal = dp(8)
         }
-        val sortEntries = listOf(
-            By.NAME to R.string.file_list_action_sort_by_name,
-            By.TYPE to R.string.file_list_action_sort_by_type,
-            By.SIZE to R.string.file_list_action_sort_by_size,
-            By.LAST_MODIFIED to R.string.file_list_action_sort_by_last_modified
-        )
-        val sortButtons = sortEntries.map { (by, titleRes) ->
-            com.google.android.material.button.MaterialButton(
-                context, null, com.google.android.material.R.attr.materialButtonOutlinedStyle
-            ).apply {
+        fun chip(textRes: Int, checked: Boolean, onChecked: () -> Unit) =
+            com.google.android.material.chip.Chip(context).apply {
                 id = View.generateViewId()
-                setText(titleRes)
-                isAllCaps = false
-                maxLines = 1
-                insetTop = 0
-                insetBottom = 0
-                sortGroup.addView(this, android.widget.LinearLayout.LayoutParams(0, dp(44), 1f))
-            } to by
-        }
-        sortButtons.firstOrNull { it.second == sortOptions.by }?.let { sortGroup.check(it.first.id) }
-        sortGroup.addOnButtonCheckedListener { _, checkedId, isChecked ->
-            if (isChecked) {
-                sortButtons.firstOrNull { it.first.id == checkedId }
-                    ?.let { viewModel.setSortBy(it.second) }
+                setText(textRes)
+                isCheckable = true
+                isChecked = checked
+                setOnClickListener { onChecked() }
             }
+        val sortGroup = chipGroup()
+        listOf(
+            By.NAME to R.string.file_list_chip_name,
+            By.TYPE to R.string.file_list_chip_type,
+            By.SIZE to R.string.file_list_chip_size,
+            By.LAST_MODIFIED to R.string.file_list_chip_date
+        ).forEach { (by, titleRes) ->
+            sortGroup.addView(chip(titleRes, sortOptions.by == by) { viewModel.setSortBy(by) })
         }
-        content.addView(sortGroup, android.widget.LinearLayout.LayoutParams(
-            android.view.ViewGroup.LayoutParams.MATCH_PARENT,
-            android.view.ViewGroup.LayoutParams.WRAP_CONTENT
-        ))
+        content.addView(sortGroup)
         content.addView(switchRow(
             R.string.file_list_action_sort_order_ascending, sortOptions.order == Order.ASCENDING
         ) { viewModel.setSortOrder(if (it) Order.ASCENDING else Order.DESCENDING) })
@@ -1284,38 +1300,16 @@ class FileListFragment : Fragment(), BreadcrumbLayout.Listener, FileListAdapter.
 
         // View.
         content.addView(label(R.string.file_list_view_as))
-        val viewGroup = com.google.android.material.button.MaterialButtonToggleGroup(context).apply {
-            isSingleSelection = true
-            isSelectionRequired = true
+        val viewGroup = chipGroup()
+        listOf(
+            FileViewType.LIST to R.string.file_list_chip_list,
+            FileViewType.GRID to R.string.file_list_chip_grid
+        ).forEach { (type, titleRes) ->
+            viewGroup.addView(chip(titleRes, viewModel.viewType == type) {
+                viewModel.viewType = type
+            })
         }
-        val viewEntries = listOf(
-            FileViewType.LIST to R.string.file_list_action_view_list,
-            FileViewType.GRID to R.string.file_list_action_view_grid
-        )
-        val viewButtons = viewEntries.map { (type, titleRes) ->
-            com.google.android.material.button.MaterialButton(
-                context, null, com.google.android.material.R.attr.materialButtonOutlinedStyle
-            ).apply {
-                id = View.generateViewId()
-                setText(titleRes)
-                isAllCaps = false
-                insetTop = 0
-                insetBottom = 0
-                viewGroup.addView(this, android.widget.LinearLayout.LayoutParams(0, dp(44), 1f))
-            } to type
-        }
-        viewButtons.firstOrNull { it.second == viewModel.viewType }
-            ?.let { viewGroup.check(it.first.id) }
-        viewGroup.addOnButtonCheckedListener { _, checkedId, isChecked ->
-            if (isChecked) {
-                viewButtons.firstOrNull { it.first.id == checkedId }
-                    ?.let { viewModel.viewType = it.second }
-            }
-        }
-        content.addView(viewGroup, android.widget.LinearLayout.LayoutParams(
-            android.view.ViewGroup.LayoutParams.MATCH_PARENT,
-            android.view.ViewGroup.LayoutParams.WRAP_CONTENT
-        ))
+        content.addView(viewGroup)
 
         // Size slider.
         content.addView(label(R.string.file_list_size))
@@ -1675,11 +1669,11 @@ class FileListFragment : Fragment(), BreadcrumbLayout.Listener, FileListAdapter.
                 true
             }
             R.id.action_create_directory_paste -> {
-                showCreateDirectoryDialog()
+                copyPasteFilesToSystemClipboard()
                 true
             }
             R.id.action_cancel_paste -> {
-                copyPasteFilesToSystemClipboard()
+                bottomActionMode.finish()
                 true
             }
             else -> false
@@ -2257,6 +2251,7 @@ class FileListFragment : Fragment(), BreadcrumbLayout.Listener, FileListAdapter.
         val showHiddenFilesItem: MenuItem,
         // Items that no longer exist in the toolbar menu; detached stand-ins keep the
         // remaining upstream code that toggles them working.
+        val sortViewItem: MenuItem,
         val viewSortPathSpecificItem: MenuItem,
         val selectAllItem: MenuItem,
         val newTabItem: MenuItem
@@ -2274,7 +2269,7 @@ class FileListFragment : Fragment(), BreadcrumbLayout.Listener, FileListAdapter.
                     item(R.id.action_sort_by_size), item(R.id.action_sort_by_last_modified),
                     item(R.id.action_sort_order_ascending),
                     item(R.id.action_sort_directories_first),
-                    item(R.id.action_show_hidden_files),
+                    item(R.id.action_show_hidden_files), item(R.id.action_sort_view),
                     detached.add(""), detached.add(""), detached.add("")
                 )
             }

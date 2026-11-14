@@ -44,7 +44,7 @@
         app:showAsAction="always" />
     <item
         android:id="@+id/action_extract"
-        android:icon="@drawable/extract_icon_control_normal_24dp"
+        android:icon="@drawable/unarchive_icon_control_normal_24dp"
         android:orderInCategory="100"
         android:title="@string/file_list_select_action_extract"
         app:showAsAction="always" />

@@ -878,4 +878,10 @@
     <string name="storage_add_storage_more">More options (FTP, SFTP, WebDAV…)</string>
     <string name="home_recent">Recent</string>
     <string name="home_network">NAS and cloud</string>
+    <string name="file_list_chip_name">Name</string>
+    <string name="file_list_chip_type">Type</string>
+    <string name="file_list_chip_size">Size</string>
+    <string name="file_list_chip_date">Date</string>
+    <string name="file_list_chip_list">List</string>
+    <string name="file_list_chip_grid">Grid</string>
 </resources>

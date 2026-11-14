@@ -59,3 +59,8 @@
 # --- Notaria ---
 # Keep line numbers so crash reports are readable.
 -keepattributes SourceFile,LineNumberTable
+
+# Notaria: reflective access to keep the sort button visible while searching.
+-keepclassmembers class androidx.appcompat.widget.ActionMenuView {
+    public void setExpandedActionViewsExclusive(boolean);
+}

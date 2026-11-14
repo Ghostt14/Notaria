@@ -39,8 +39,13 @@ class DateHeaderDecoration(
     }
     private val sidePadding = 16 * density
 
-    private var groupStarts = BooleanArray(0)
-    private var now = 0L
+    private val labels = arrayOf(
+        context.getString(R.string.file_list_group_today),
+        context.getString(R.string.file_list_group_week),
+        context.getString(R.string.file_list_group_month),
+        context.getString(R.string.file_list_group_earlier)
+    )
+    private val labelWidths = FloatArray(4)
     private val startOfToday: Long
     private val startOfWeekWindow: Long
     private val startOfMonth: Long
@@ -98,18 +103,15 @@ class DateHeaderDecoration(
             if (!isGroupStart(position)) {
                 continue
             }
-            val label = context.getString(
-                when (groupOf(adapter.getItem(position))) {
-                    0 -> R.string.file_list_group_today
-                    1 -> R.string.file_list_group_week
-                    2 -> R.string.file_list_group_month
-                    else -> R.string.file_list_group_earlier
-                }
-            )
+            val group = groupOf(adapter.getItem(position))
+            val label = labels[group]
+            if (labelWidths[group] == 0f) {
+                labelWidths[group] = textPaint.measureText(label)
+            }
             val top = child.top + child.translationY - headerHeight
             val baseline = top + headerHeight * 0.62f
             canvas.drawText(label, sidePadding, baseline, textPaint)
-            val lineStart = sidePadding + textPaint.measureText(label) + 12 * density
+            val lineStart = sidePadding + labelWidths[group] + 12 * density
             val lineY = baseline - textPaint.textSize * 0.3f
             canvas.drawLine(lineStart, lineY, parent.width - sidePadding, lineY, linePaint)
         }

@@ -107,19 +107,10 @@
             android:layout_width="@dimen/large_icon_size"
             android:layout_height="@dimen/large_icon_size"
             android:layout_gravity="center"
-            android:background="?attr/colorSurface"
             android:importantForAccessibility="no"
             android:padding="6dp"
-            android:src="@drawable/check_box_icon_24dp"
+            android:src="@drawable/selection_check_24dp"
             android:visibility="gone" />
-
-
-            <me.zhanghai.android.files.ui.DisabledAlphaImageView
-                android:layout_width="@dimen/badge_size"
-                android:layout_height="@dimen/badge_size"
-                android:layout_gravity="end|bottom"
-                android:duplicateParentState="true"
-                android:src="@drawable/checkable_badge_18dp" />
         </FrameLayout>
 
         <TextView

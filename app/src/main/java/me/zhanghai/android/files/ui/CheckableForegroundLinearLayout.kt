@@ -37,6 +37,17 @@ class CheckableForegroundLinearLayout : ForegroundLinearLayout, Checkable {
         @StyleRes defStyleRes: Int
     ) : super(context, attrs, defStyleAttr, defStyleRes)
 
+    // The View constructor can call this before the library has created its foreground helper
+    // (it happens when the theme supplies scrollbar attributes, e.g. after the Settings screen
+    // has applied its theme overlay), which would crash with a NullPointerException.
+    override fun onRtlPropertiesChanged(layoutDirection: Int) {
+        try {
+            super.onRtlPropertiesChanged(layoutDirection)
+        } catch (e: NullPointerException) {
+            // Ignore: the helper picks up the layout direction once it exists.
+        }
+    }
+
     override fun isChecked(): Boolean = _isChecked
 
     override fun setChecked(checked: Boolean) {
