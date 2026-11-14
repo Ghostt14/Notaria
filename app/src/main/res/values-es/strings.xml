@@ -590,7 +590,7 @@
     <string name="storage_edit_webdav_server_add">Añadir</string>
 
     <string name="navigation_storage_subtitle_format">%1$s libre de %2$s</string>
-    <string name="navigation_add_storage">Agregar almacenamiento…</string>
+    <string name="navigation_add_storage">Conectar a NAS o red…</string>
     <string name="navigation_standard_directory_alarms">Alarmas</string>
     <string name="navigation_standard_directory_dcim">DCIM</string>
     <string name="navigation_standard_directory_documents">Documentos</string>
@@ -706,4 +706,33 @@
     <string name="file_list_action_new_tab">Nueva pestaña</string>
     <string name="file_list_close_tab">Cerrar pestaña</string>
     <string name="file_item_action_open_in_new_tab">Abrir en pestaña nueva</string>
+    <string name="trash_title">Papelera</string>
+    <string name="trash_moved_to_trash">Movido a la papelera</string>
+    <string name="trash_move_failed">No se pudo mover a la papelera</string>
+    <string name="trash_restore">Restaurar</string>
+    <string name="trash_restored">Restaurado</string>
+    <string name="trash_delete_forever">Eliminar definitivamente</string>
+    <string name="trash_empty">Vaciar papelera</string>
+    <string name="trash_empty_confirm">¿Eliminar definitivamente todo el contenido de la papelera?</string>
+    <string name="home_title">Inicio</string>
+    <string name="home_in_use">en uso</string>
+    <string name="home_images">Imágenes</string>
+    <string name="home_videos">Videos</string>
+    <string name="home_audio">Archivos de audio</string>
+    <string name="home_documents">Documentos</string>
+    <string name="home_downloads">Descargas</string>
+    <string name="home_install_files">Arch. instalación</string>
+    <string name="home_archives">Archivos comprimidos</string>
+    <string name="home_other">Otros (sistema, apps y más)</string>
+    <string name="file_list_action_sort">Ordenar</string>
+    <string name="file_list_action_view">Vista</string>
+    <string name="file_list_action_view_adjust">Ajustar tamaño…</string>
+    <string name="file_list_group_today">Hoy</string>
+    <string name="file_list_group_week">Esta semana</string>
+    <string name="file_list_group_month">Este mes</string>
+    <string name="file_list_group_earlier">Antes</string>
+    <plurals name="file_item_count_format">
+        <item quantity="one">%d elemento</item>
+        <item quantity="other">%d elementos</item>
+    </plurals>
 </resources>

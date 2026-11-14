@@ -83,4 +83,6 @@
     <string name="pref_key_read_remote_files_for_thumbnail">key_read_remote_files_for_thumbnail</string>
     <bool name="pref_default_value_read_remote_files_for_thumbnail">true</bool>
     <string name="pref_key_open_tabs">key_open_tabs</string>
+    <string name="pref_key_file_list_scale">key_file_list_scale</string>
+    <integer name="pref_default_value_file_list_scale">100</integer>
 </resources>

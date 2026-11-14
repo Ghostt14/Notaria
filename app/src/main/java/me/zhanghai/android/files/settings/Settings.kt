@@ -57,10 +57,16 @@ object Settings {
             FileViewType::class.java
         )
 
+    // Notaria: the view slider, as a percentage (70..160) applied to row/tile size and text.
+    val FILE_LIST_SCALE: SettingLiveData<Int> =
+        IntegerSettingLiveData(
+            R.string.pref_key_file_list_scale, R.integer.pref_default_value_file_list_scale
+        )
+
     val FILE_LIST_SORT_OPTIONS: SettingLiveData<FileSortOptions> =
         ParcelValueSettingLiveData(
             R.string.pref_key_file_list_sort_options,
-            FileSortOptions(FileSortOptions.By.NAME, FileSortOptions.Order.ASCENDING, true)
+            FileSortOptions(FileSortOptions.By.LAST_MODIFIED, FileSortOptions.Order.DESCENDING, false)
         )
 
     val CREATE_ARCHIVE_TYPE: SettingLiveData<Int> =

@@ -68,8 +68,29 @@ class NavigationFragment : Fragment(), NavigationItem.Listener {
         listener.navigateToRoot(path)
     }
 
+    override val isHomeShown: Boolean
+        get() = listener.isHomeShown
+
+    override fun showHome() {
+        listener.showHome()
+    }
+
+    fun refreshChecked() {
+        if (this::adapter.isInitialized) {
+            adapter.notifyCheckedChanged()
+        }
+    }
+
     override fun launchIntent(intent: Intent) {
         startActivitySafe(intent)
+        // Settings and About slide in like opening a folder instead of rising from the bottom.
+        if (intent.getBooleanExtra(me.zhanghai.android.files.app.EXTRA_SLIDE, false)) {
+            @Suppress("DEPRECATION")
+            requireActivity().overridePendingTransition(
+                me.zhanghai.android.files.R.anim.slide_in_right,
+                me.zhanghai.android.files.R.anim.slide_out_left
+            )
+        }
     }
 
     override fun closeNavigationDrawer() {
@@ -81,6 +102,8 @@ class NavigationFragment : Fragment(), NavigationItem.Listener {
         fun navigateTo(path: Path)
         fun navigateToRoot(path: Path)
         fun navigateToDefaultRoot()
+        val isHomeShown: Boolean
+        fun showHome()
         fun observeCurrentPath(owner: LifecycleOwner, observer: (Path) -> Unit)
         fun closeNavigationDrawer()
     }

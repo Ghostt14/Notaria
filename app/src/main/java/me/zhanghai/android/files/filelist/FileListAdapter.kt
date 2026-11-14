@@ -18,6 +18,13 @@ import androidx.recyclerview.widget.RecyclerView
 import coil.dispose
 import coil.load
 import java8.nio.file.Path
+import me.zhanghai.android.files.provider.linux.isLinuxPath
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.Dispatchers
+import java8.nio.file.Files
+import androidx.lifecycle.lifecycleScope
+import androidx.lifecycle.findViewTreeLifecycleOwner
 import me.zhanghai.android.fastscroll.PopupTextProvider
 import me.zhanghai.android.files.R
 import me.zhanghai.android.files.coil.AppIconPackageName
@@ -46,6 +53,23 @@ class FileListAdapter(
     private val listener: Listener
 ) : AnimatedListAdapter<FileItem, FileListAdapter.ViewHolder>(CALLBACK), PopupTextProvider {
     private var isSearching = false
+
+    // Notaria: whether the list is shown with date section headers.
+    val isGroupedByDate: Boolean
+        get() = this::_viewType.isInitialized && this::_sortOptions.isInitialized &&
+            viewType == FileViewType.LIST && _sortOptions.by == FileSortOptions.By.LAST_MODIFIED &&
+            !isSearching
+
+    // The view slider: 100 means normal size.
+    var scale: Int = 100
+        set(value) {
+            if (field != value) {
+                field = value
+                notifyDataSetChanged()
+            }
+        }
+
+    private val childCountCache = android.util.LruCache<Path, Int>(1000)
 
     private lateinit var _viewType: FileViewType
     var viewType: FileViewType
@@ -212,6 +236,7 @@ class FileListAdapter(
 
     override fun onBindViewHolder(holder: ViewHolder, position: Int, payloads: List<Any>) {
         val file = getItem(position)
+        applyScale(holder)
         val isDirectory = file.attributes.isDirectory
         val isEnabled = isFileSelectable(file) || isDirectory
         holder.itemLayout.isEnabled = isEnabled
@@ -317,15 +342,12 @@ class FileListAdapter(
             }
         }
         holder.nameText.text = file.name
-        holder.descriptionText?.text = if (isDirectory) {
-            null
-        } else {
-            val context = holder.descriptionText!!.context
-            val lastModificationTime = attributes.lastModifiedTime().toInstant()
-                .formatShort(context)
-            val size = attributes.fileSize.formatHumanReadable(context)
-            val descriptionSeparator = context.getString(R.string.file_item_description_separator)
-            listOf(lastModificationTime, size).joinToString(descriptionSeparator)
+        val descriptionText = holder.descriptionText
+        if (descriptionText != null) {
+            // Date and time under the name; size (or item count) at the right.
+            descriptionText.text =
+                attributes.lastModifiedTime().toInstant().formatShort(descriptionText.context)
+            bindSizeText(holder, file, isDirectory)
         }
         val isArchivePath = path.isArchivePath
         menu.findItem(R.id.action_copy)
@@ -421,6 +443,59 @@ class FileListAdapter(
         }
     }
 
+    private fun applyScale(holder: ViewHolder) {
+        val factor = scale / 100f
+        holder.nameText.setTextSize(
+            android.util.TypedValue.COMPLEX_UNIT_PX, holder.baseNameTextSize * factor
+        )
+        holder.descriptionText?.setTextSize(
+            android.util.TypedValue.COMPLEX_UNIT_PX, holder.baseDescriptionTextSize * factor
+        )
+        holder.sizeText?.setTextSize(
+            android.util.TypedValue.COMPLEX_UNIT_PX, holder.baseDescriptionTextSize * factor
+        )
+        // Only the list rows have a description; tiles size themselves from the span count.
+        if (holder.descriptionText != null) {
+            val params = holder.itemLayout.layoutParams
+            val height = (64 * holder.itemLayout.resources.displayMetrics.density * factor).toInt()
+            if (params.height != height) {
+                params.height = height
+                holder.itemLayout.layoutParams = params
+            }
+        }
+    }
+
+    private fun bindSizeText(holder: ViewHolder, file: FileItem, isDirectory: Boolean) {
+        val sizeText = holder.sizeText ?: return
+        holder.countJob?.cancel()
+        holder.countJob = null
+        if (!isDirectory) {
+            sizeText.text = file.attributes.fileSize.formatHumanReadable(sizeText.context)
+            return
+        }
+        val path = file.path
+        val cached = childCountCache.get(path)
+        if (cached != null) {
+            sizeText.text = formatCount(sizeText.context, cached)
+            return
+        }
+        sizeText.text = ""
+        if (!path.isLinuxPath) {
+            return
+        }
+        val scope = holder.itemView.findViewTreeLifecycleOwner()?.lifecycleScope ?: return
+        holder.countJob = scope.launch {
+            val count = withContext(Dispatchers.IO) {
+                runCatching { Files.newDirectoryStream(path).use { it.count() } }.getOrNull()
+            } ?: return@launch
+            childCountCache.put(path, count)
+            sizeText.text = formatCount(sizeText.context, count)
+        }
+    }
+
+    private fun formatCount(context: android.content.Context, count: Int): String =
+        context.resources.getQuantityString(R.plurals.file_item_count_format, count, count)
+
     class ViewHolder private constructor(
         root: View,
         val itemLayout: CheckableForegroundLinearLayout,
@@ -434,8 +509,13 @@ class FileListAdapter(
         val badgeImage: ImageView,
         val nameText: TextView,
         val descriptionText: TextView?,
+        val sizeText: TextView?,
         val menuButton: ImageButton
     ) : RecyclerView.ViewHolder(root) {
+        var countJob: kotlinx.coroutines.Job? = null
+        val baseNameTextSize: Float = nameText.textSize
+        val baseDescriptionTextSize: Float = descriptionText?.textSize ?: nameText.textSize * 0.8f
+
         constructor(binding: FileItemListBinding) : this(
             binding.root,
             binding.itemLayout,
@@ -449,6 +529,7 @@ class FileListAdapter(
             binding.badgeImage,
             binding.nameText,
             binding.descriptionText,
+            binding.sizeText,
             binding.menuButton
         )
 
@@ -464,6 +545,7 @@ class FileListAdapter(
             binding.appIconBadgeImage,
             binding.badgeImage,
             binding.nameText,
+            null,
             null,
             binding.menuButton
         )

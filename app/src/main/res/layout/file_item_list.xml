@@ -10,7 +10,7 @@
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:id="@+id/itemLayout"
     android:layout_width="match_parent"
-    android:layout_height="@dimen/two_line_list_item_height"
+    android:layout_height="64dp"
     android:foreground="?selectableItemBackground"
     android:gravity="center_vertical"
     android:orientation="horizontal">
@@ -95,6 +95,19 @@
             android:textColor="?android:textColorSecondary" />
     </LinearLayout>
 
+    <TextView
+        android:id="@+id/sizeText"
+        android:layout_width="wrap_content"
+        android:layout_height="match_parent"
+        android:layout_marginStart="8dp"
+        android:layout_marginEnd="16dp"
+        android:duplicateParentState="true"
+        android:gravity="bottom|end"
+        android:paddingBottom="10dp"
+        android:singleLine="true"
+        android:textAppearance="?textAppearanceListItemSecondary"
+        android:textColor="?android:textColorSecondary" />
+
     <!--
       ~ Cannot use android:duplicateParentState="true" because a button needs to have its own
       ~ pressed state, etc. Necessary states will be duplicated manually in the adapter
@@ -102,6 +115,7 @@
       -->
     <me.zhanghai.android.foregroundcompat.ForegroundImageButton
         android:id="@+id/menuButton"
+        android:visibility="gone"
         android:layout_width="@dimen/touch_target_size"
         android:layout_height="@dimen/touch_target_size"
         android:layout_marginStart="@dimen/content_start_from_screen_edge_margin_minus_36dp_considering_at_least_8dp"

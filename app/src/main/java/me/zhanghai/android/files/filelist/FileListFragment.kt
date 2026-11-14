@@ -42,6 +42,7 @@ import androidx.core.graphics.drawable.IconCompat
 import androidx.core.view.GravityCompat
 import androidx.core.view.isVisible
 import androidx.lifecycle.LiveData
+import androidx.lifecycle.lifecycleScope
 import androidx.core.view.updatePaddingRelative
 import androidx.drawerlayout.widget.DrawerLayout
 import androidx.fragment.app.Fragment
@@ -101,6 +102,8 @@ import me.zhanghai.android.files.ui.ToolbarActionMode
 import me.zhanghai.android.files.util.DebouncedRunnable
 import me.zhanghai.android.files.util.Failure
 import me.zhanghai.android.files.util.Loading
+import me.zhanghai.android.files.home.HomeView
+import me.zhanghai.android.files.trash.TrashManager
 import me.zhanghai.android.files.util.ParcelableArgs
 import me.zhanghai.android.files.util.getParcelableSafe
 import me.zhanghai.android.files.util.Stateful
@@ -173,6 +176,11 @@ class FileListFragment : Fragment(), BreadcrumbLayout.Listener, FileListAdapter.
     val currentPathLiveData: LiveData<Path>
         get() = viewModel.currentPathLiveData
 
+    val isHomeLiveData: LiveData<Boolean>
+        get() = viewModel.isHomeLiveData
+
+    private lateinit var homeView: HomeView
+
     // The last visited path, saved in the instance state so that each tab can restore its
     // location after process death (the view model trail itself isn't saved).
     private var savedPath: Path? = null
@@ -186,6 +194,10 @@ class FileListFragment : Fragment(), BreadcrumbLayout.Listener, FileListAdapter.
     private lateinit var overlayActionMode: ToolbarActionMode
 
     private lateinit var bottomActionMode: ToolbarActionMode
+
+    // Notaria: the bottom pill shows either the paste bar (or pick bar) or the selection bar.
+    private var bottomShowsSelection = false
+    private var suppressBottomFinish = false
 
     private lateinit var layoutManager: GridLayoutManager
 
@@ -243,6 +255,20 @@ class FileListFragment : Fragment(), BreadcrumbLayout.Listener, FileListAdapter.
         activity.setTitle(R.string.file_list_title)
         activity.setSupportActionBar(binding.toolbar)
         overlayActionMode = OverlayToolbarActionMode(binding.overlayToolbar, binding.toolbar)
+        homeView = HomeView(requireContext()).also {
+            it.setBackgroundColor(
+                com.google.android.material.color.MaterialColors.getColor(
+                    binding.contentLayout, com.google.android.material.R.attr.colorSurface
+                )
+            )
+            it.visibility = View.GONE
+            it.onOpenDirectory = { directory -> navigateTo(Paths.get(directory.path)) }
+            binding.contentLayout.addView(
+                it, ViewGroup.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT
+                )
+            )
+        }
         bottomActionMode = PersistentBarLayoutToolbarActionMode(
             binding.persistentBarLayout, binding.bottomBarLayout, binding.bottomToolbar
         )
@@ -265,6 +291,7 @@ class FileListFragment : Fragment(), BreadcrumbLayout.Listener, FileListAdapter.
         binding.recyclerView.layoutManager = layoutManager
         adapter = FileListAdapter(this)
         binding.recyclerView.adapter = adapter
+        binding.recyclerView.addItemDecoration(DateHeaderDecoration(requireContext(), adapter))
         val fastScroller = ThemedFastScroller.create(binding.recyclerView)
         binding.recyclerView.setOnApplyWindowInsetsListener(
             ScrollingViewOnApplyWindowInsetsListener(binding.recyclerView, fastScroller)
@@ -289,12 +316,17 @@ class FileListFragment : Fragment(), BreadcrumbLayout.Listener, FileListAdapter.
                 }
             }
                 .also { callback ->
-                    viewModel.breadcrumbLiveData.observe(viewLifecycleOwner) {
-                        callback.isEnabled = viewModel.canNavigateUpBreadcrumb
+                    val update = {
+                        callback.isEnabled =
+                            viewModel.canNavigateUpBreadcrumb && !viewModel.isHome
                     }
+                    viewModel.breadcrumbLiveData.observe(viewLifecycleOwner) { update() }
+                    viewModel.isHomeLiveData.observe(viewLifecycleOwner) { update() }
                 }
         )
         addOnBackPressedCallback(overlayActionMode.onBackPressedCallback)
+        // Back clears the selection pill, but must not cancel a pending paste.
+        addOnBackPressedCallback(bottomActionMode.onBackPressedCallback)
         addOnBackPressedCallback(SpeedDialViewOnBackPressedCallback(binding.speedDialView))
         binding.drawerLayout?.let {
             addOnBackPressedCallback(DrawerLayoutOnBackPressedCallback(it))
@@ -359,6 +391,8 @@ class FileListFragment : Fragment(), BreadcrumbLayout.Listener, FileListAdapter.
                 path = Settings.FILE_LIST_DEFAULT_DIRECTORY.valueCompat
             }
             viewModel.resetTo(path)
+            // Notaria: a plain launch (not a view/pick intent) opens on Home.
+            viewModel.isHome = intent.action == Intent.ACTION_MAIN && pickOptions == null
             if (pickOptions != null) {
                 viewModel.pickOptions = pickOptions
             }
@@ -394,7 +428,31 @@ class FileListFragment : Fragment(), BreadcrumbLayout.Listener, FileListAdapter.
         Settings.FILE_LIST_SHOW_HIDDEN_FILES.observe(viewLifecycleOwner) {
             onShowHiddenFilesChanged(it)
         }
+        viewModel.isHomeLiveData.observe(viewLifecycleOwner) { onHomeChanged(it) }
+        Settings.FILE_LIST_SCALE.observe(viewLifecycleOwner) {
+            adapter.scale = it
+            updateSpanCount()
+        }
         updateTabBar()
+    }
+
+    private fun onHomeChanged(isHome: Boolean) {
+        homeView.isVisible = isHome
+        binding.breadcrumbLayout.isVisible = !isHome
+        binding.speedDialView.isVisible = !isHome
+        if (isHome) {
+            collapseSearchView()
+            homeView.refresh(viewLifecycleOwner.lifecycleScope)
+        }
+        requireActivity().invalidateOptionsMenu()
+        navigationFragment.refreshChecked()
+    }
+
+    override val isHomeShown: Boolean
+        get() = viewModel.isHome
+
+    override fun showHome() {
+        viewModel.isHome = true
     }
 
     override fun onResume() {
@@ -411,7 +469,7 @@ class FileListFragment : Fragment(), BreadcrumbLayout.Listener, FileListAdapter.
     override fun onCreateOptionsMenu(menu: Menu, inflater: MenuInflater) {
         super.onCreateOptionsMenu(menu, inflater)
 
-        menuBinding = MenuBinding.inflate(menu, inflater)
+        menuBinding = MenuBinding.inflate(menu, inflater, requireContext())
         menuBinding.viewSortItem.subMenu!!.setGroupDividerEnabledCompat(true)
         setUpSearchView()
     }
@@ -480,6 +538,14 @@ class FileListFragment : Fragment(), BreadcrumbLayout.Listener, FileListAdapter.
                         !Settings.FILE_LIST_PERSISTENT_DRAWER_OPEN.valueCompat
                     )
                 }
+                true
+            }
+            R.id.action_view_adjust -> {
+                showViewAdjustSheet()
+                true
+            }
+            R.id.action_empty_trash -> {
+                confirmEmptyTrash()
                 true
             }
             R.id.action_view_list -> {
@@ -682,6 +748,7 @@ class FileListFragment : Fragment(), BreadcrumbLayout.Listener, FileListAdapter.
     private fun onViewTypeChanged(viewType: FileViewType) {
         updateSpanCount()
         adapter.viewType = viewType
+        binding.recyclerView.invalidateItemDecorations()
         updateViewSortMenuItems()
     }
 
@@ -695,13 +762,15 @@ class FileListFragment : Fragment(), BreadcrumbLayout.Listener, FileListAdapter.
                     persistentDrawerLayout.isDrawerOpen(GravityCompat.START)) {
                     widthDp -= getDimensionDp(R.dimen.navigation_max_width).roundToInt()
                 }
-                (widthDp / 180).coerceAtLeast(2)
+                (widthDp / (180f * Settings.FILE_LIST_SCALE.valueCompat / 100f)).toInt()
+                    .coerceAtLeast(1)
             }
         }
     }
 
     private fun onSortOptionsChanged(sortOptions: FileSortOptions) {
         adapter.sortOptions = sortOptions
+        binding.recyclerView.invalidateItemDecorations()
         updateViewSortMenuItems()
     }
 
@@ -714,7 +783,11 @@ class FileListFragment : Fragment(), BreadcrumbLayout.Listener, FileListAdapter.
             return
         }
         val searchViewExpanded = viewModel.isSearchViewExpanded
-        menuBinding.viewSortItem.isVisible = !searchViewExpanded
+        menuBinding.viewSortItem.isVisible = !searchViewExpanded && !viewModel.isHome
+        menuBinding.menu.findItem(R.id.action_empty_trash)?.isVisible =
+            TrashManager.isInTrash(viewModel.currentPath)
+        menuBinding.viewItem.isVisible = !searchViewExpanded && !viewModel.isHome
+        menuBinding.searchItem.isVisible = !viewModel.isHome
         if (searchViewExpanded) {
             return
         }
@@ -757,8 +830,8 @@ class FileListFragment : Fragment(), BreadcrumbLayout.Listener, FileListAdapter.
         }
         val activity = activity as? FileListActivity
         val items = activity?.tabItems ?: emptyList()
-        binding.tabBar.isVisible = items.size > 1
-        if (activity != null && items.size > 1) {
+        binding.tabBar.isVisible = items.isNotEmpty()
+        if (activity != null && items.isNotEmpty()) {
             binding.tabBar.setTabs(
                 items,
                 onSelect = { activity.selectTabById(it) },
@@ -831,6 +904,7 @@ class FileListFragment : Fragment(), BreadcrumbLayout.Listener, FileListAdapter.
     }
 
     override fun navigateTo(path: Path) {
+        viewModel.isHome = false
         collapseSearchView()
         val state = layoutManager.onSaveInstanceState()
         viewModel.navigateTo(state!!, path)
@@ -919,9 +993,16 @@ class FileListFragment : Fragment(), BreadcrumbLayout.Listener, FileListAdapter.
             if (overlayActionMode.isActive) {
                 overlayActionMode.finish()
             }
+            if (bottomShowsSelection && bottomActionMode.isActive) {
+                bottomActionMode.finish()
+            }
             return
         }
         val pickOptions = viewModel.pickOptions
+        if (pickOptions == null) {
+            updateSelectionBar(files)
+            return
+        }
         if (pickOptions != null) {
             overlayActionMode.title = getString(R.string.file_list_select_title_format, files.size)
             overlayActionMode.setMenuResource(R.menu.file_list_pick)
@@ -979,6 +1060,123 @@ class FileListFragment : Fragment(), BreadcrumbLayout.Listener, FileListAdapter.
         }
     }
 
+    // The selection pill: cut, copy, delete, share, rename and an overflow menu.
+    private fun updateSelectionBar(files: FileItemSet) {
+        if (!bottomShowsSelection) {
+            if (bottomActionMode.isActive) {
+                suppressBottomFinish = true
+                bottomActionMode.finish(false)
+                suppressBottomFinish = false
+            }
+            bottomShowsSelection = true
+        }
+        binding.bottomCreateFileNameEdit.isVisible = false
+        binding.bottomToolbar.setOnClickListener(null)
+        bottomActionMode.setMenuResource(R.menu.file_list_select)
+        bottomActionMode.title = null
+        bottomActionMode.navigationIcon = null
+        val menu = bottomActionMode.menu
+        val inTrash = TrashManager.isInTrash(viewModel.currentPath)
+        val isAnyFileReadOnly = files.any { it.path.fileSystem.isReadOnly }
+        menu.findItem(R.id.action_cut).isVisible = !isAnyFileReadOnly && !inTrash
+        val areAllFilesArchivePaths = files.all { it.path.isArchivePath }
+        menu.findItem(R.id.action_copy)
+            .setIcon(
+                if (areAllFilesArchivePaths) {
+                    R.drawable.extract_icon_control_normal_24dp
+                } else {
+                    R.drawable.copy_icon_control_normal_24dp
+                }
+            )
+            .setTitle(
+                if (areAllFilesArchivePaths) {
+                    R.string.file_list_select_action_extract
+                } else {
+                    R.string.copy
+                }
+            )
+            .isVisible = !inTrash
+        menu.findItem(R.id.action_delete).apply {
+            isVisible = !isAnyFileReadOnly
+            setTitle(if (inTrash) R.string.trash_delete_forever else R.string.delete)
+        }
+        menu.findItem(R.id.action_restore).isVisible = inTrash
+        menu.findItem(R.id.action_share).isVisible = !inTrash
+        menu.findItem(R.id.action_rename).isVisible = files.size == 1 && !isAnyFileReadOnly && !inTrash
+        menu.findItem(R.id.action_extract).isVisible = files.all { it.isArchiveFile }
+        menu.findItem(R.id.action_archive).isVisible =
+            !viewModel.currentPath.fileSystem.isReadOnly && !inTrash
+        if (!bottomActionMode.isActive) {
+            bottomActionMode.start(object : ToolbarActionMode.Callback {
+                override fun onToolbarActionModeMenuItemClicked(
+                    toolbarActionMode: ToolbarActionMode,
+                    item: MenuItem
+                ): Boolean = onOverlayActionModeMenuItemClicked(item)
+
+                override fun onToolbarActionModeFinished(toolbarActionMode: ToolbarActionMode) {
+                    if (suppressBottomFinish) {
+                        return
+                    }
+                    bottomShowsSelection = false
+                    viewModel.clearSelectedFiles()
+                    updateBottomToolbar()
+                }
+            })
+        }
+    }
+
+    // The view slider.
+    private fun showViewAdjustSheet() {
+        val context = requireContext()
+        val density = resources.displayMetrics.density
+        val sheet = com.google.android.material.bottomsheet.BottomSheetDialog(context)
+        val content = android.widget.LinearLayout(context).apply {
+            orientation = android.widget.LinearLayout.VERTICAL
+            val pad = (24 * density).toInt()
+            setPadding(pad, pad, pad, pad)
+        }
+        content.addView(android.widget.TextView(context).apply {
+            setText(R.string.file_list_action_view_adjust)
+            setTextAppearance(
+                com.google.android.material.R.style.TextAppearance_Material3_TitleMedium
+            )
+        })
+        content.addView(com.google.android.material.slider.Slider(context).apply {
+            valueFrom = 70f
+            valueTo = 160f
+            stepSize = 10f
+            value = Settings.FILE_LIST_SCALE.valueCompat.toFloat().coerceIn(70f, 160f)
+            addOnChangeListener { _, newValue, fromUser ->
+                if (fromUser) {
+                    Settings.FILE_LIST_SCALE.putValue(newValue.toInt())
+                }
+            }
+        })
+        sheet.setContentView(content)
+        sheet.show()
+    }
+
+    private fun confirmEmptyTrash() {
+        com.google.android.material.dialog.MaterialAlertDialogBuilder(requireContext())
+            .setMessage(R.string.trash_empty_confirm)
+            .setPositiveButton(R.string.trash_empty) { _, _ ->
+                TrashManager.emptyTrash()
+                viewModel.reload()
+            }
+            .setNegativeButton(android.R.string.cancel, null)
+            .show()
+    }
+
+    private fun restoreSelectedFiles() {
+        val files = viewModel.selectedFiles
+        val restored = files.count { TrashManager.restore(java.io.File(it.path.toString())) != null }
+        viewModel.selectFiles(files, false)
+        viewModel.reload()
+        if (restored > 0) {
+            showToast(R.string.trash_restored)
+        }
+    }
+
     private fun onOverlayActionModeMenuItemClicked(item: MenuItem): Boolean =
         when (item.itemId) {
             R.id.action_open -> {
@@ -1011,6 +1209,14 @@ class FileListFragment : Fragment(), BreadcrumbLayout.Listener, FileListAdapter.
             }
             R.id.action_share -> {
                 shareFiles(viewModel.selectedFiles)
+                true
+            }
+            R.id.action_rename -> {
+                viewModel.selectedFiles.singleOrNull()?.let { showRenameFileDialog(it) }
+                true
+            }
+            R.id.action_restore -> {
+                restoreSelectedFiles()
                 true
             }
             R.id.action_select_all -> {
@@ -1050,6 +1256,20 @@ class FileListFragment : Fragment(), BreadcrumbLayout.Listener, FileListAdapter.
     }
 
     private fun confirmDeleteFiles(files: FileItemSet) {
+        // Notaria: files on the primary storage go to the trash without a prompt.
+        if (files.all { TrashManager.isTrashable(it.path) }) {
+            val trashed = files.count { TrashManager.moveToTrash(it.path) }
+            viewModel.selectFiles(files, false)
+            viewModel.reload()
+            showToast(
+                if (trashed == files.size) {
+                    R.string.trash_moved_to_trash
+                } else {
+                    R.string.trash_move_failed
+                }
+            )
+            return
+        }
         ConfirmDeleteFilesDialogFragment.show(files, this)
     }
 
@@ -1095,6 +1315,9 @@ class FileListFragment : Fragment(), BreadcrumbLayout.Listener, FileListAdapter.
     }
 
     private fun updateBottomToolbar() {
+        if (bottomShowsSelection) {
+            return
+        }
         val pickOptions = viewModel.pickOptions
         if (pickOptions != null) {
             bottomActionMode.setMenuResource(R.menu.file_list_pick_bottom)
@@ -1146,16 +1369,13 @@ class FileListFragment : Fragment(), BreadcrumbLayout.Listener, FileListAdapter.
                 return
             }
             val areAllFilesArchivePaths = files.all { it.path.isArchivePath }
+            bottomActionMode.setNavigationIcon(
+                R.drawable.paste_icon_control_normal_24dp, R.string.paste
+            )
+            binding.bottomToolbar.setOnClickListener { pasteIfPossible() }
             bottomActionMode.title = getString(
-                if (pasteState.copy) {
-                    if (areAllFilesArchivePaths) {
-                        R.string.file_list_paste_extract_title_format
-                    } else {
-                        R.string.file_list_paste_copy_title_format
-                    }
-                } else {
-                    R.string.file_list_paste_move_title_format
-                }, files.size
+                if (areAllFilesArchivePaths) R.string.file_list_paste_action_extract_here
+                else R.string.paste
             )
             binding.bottomCreateFileNameEdit.isVisible = false
             bottomActionMode.setMenuResource(R.menu.file_list_paste)
@@ -1181,6 +1401,7 @@ class FileListFragment : Fragment(), BreadcrumbLayout.Listener, FileListAdapter.
                     onBottomActionModeFinished()
                 }
             })
+            bottomActionMode.onBackPressedCallback.isEnabled = false
         }
     }
 
@@ -1189,7 +1410,14 @@ class FileListFragment : Fragment(), BreadcrumbLayout.Listener, FileListAdapter.
         if (pickOptions != null) {
             requireActivity().finish()
         } else {
-            bottomActionMode.finish()
+            // In the paste pill the left icon is the paste button.
+            pasteIfPossible()
+        }
+    }
+
+    private fun pasteIfPossible() {
+        if (!viewModel.currentPath.fileSystem.isReadOnly) {
+            pasteFiles(viewModel.currentPath)
         }
     }
 
@@ -1220,10 +1448,21 @@ class FileListFragment : Fragment(), BreadcrumbLayout.Listener, FileListAdapter.
                 pasteFiles(currentPath)
                 true
             }
+            R.id.action_create_directory_paste -> {
+                showCreateDirectoryDialog()
+                true
+            }
+            R.id.action_cancel_paste -> {
+                bottomActionMode.finish()
+                true
+            }
             else -> false
         }
 
     private fun onBottomActionModeFinished() {
+        if (suppressBottomFinish) {
+            return
+        }
         val pickOptions = viewModel.pickOptions
         if (pickOptions == null) {
             viewModel.clearPasteState()
@@ -1512,6 +1751,7 @@ class FileListFragment : Fragment(), BreadcrumbLayout.Listener, FileListAdapter.
         get() = viewModel.currentPath
 
     override fun navigateToRoot(path: Path) {
+        viewModel.isHome = false
         collapseSearchView()
         viewModel.resetTo(path)
     }
@@ -1773,6 +2013,8 @@ class FileListFragment : Fragment(), BreadcrumbLayout.Listener, FileListAdapter.
         val menu: Menu,
         val searchItem: MenuItem,
         val viewSortItem: MenuItem,
+        val viewItem: MenuItem,
+        val viewAdjustItem: MenuItem,
         val viewListItem: MenuItem,
         val viewGridItem: MenuItem,
         val sortByNameItem: MenuItem,
@@ -1781,27 +2023,28 @@ class FileListFragment : Fragment(), BreadcrumbLayout.Listener, FileListAdapter.
         val sortByLastModifiedItem: MenuItem,
         val sortOrderAscendingItem: MenuItem,
         val sortDirectoriesFirstItem: MenuItem,
+        val showHiddenFilesItem: MenuItem,
+        // Items that no longer exist in the toolbar menu; detached stand-ins keep the
+        // remaining upstream code that toggles them working.
         val viewSortPathSpecificItem: MenuItem,
         val selectAllItem: MenuItem,
-        val showHiddenFilesItem: MenuItem,
         val newTabItem: MenuItem
     ) {
         companion object {
-            fun inflate(menu: Menu, inflater: MenuInflater): MenuBinding {
+            fun inflate(menu: Menu, inflater: MenuInflater, context: Context): MenuBinding {
                 inflater.inflate(R.menu.file_list, menu)
+                val detached = android.widget.PopupMenu(context, View(context)).menu
+                fun item(id: Int): MenuItem = menu.findItem(id) ?: detached.add("")
                 return MenuBinding(
-                    menu, menu.findItem(R.id.action_search), menu.findItem(R.id.action_view_sort),
-                    menu.findItem(R.id.action_view_list), menu.findItem(R.id.action_view_grid),
-                    menu.findItem(R.id.action_sort_by_name),
-                    menu.findItem(R.id.action_sort_by_type),
-                    menu.findItem(R.id.action_sort_by_size),
-                    menu.findItem(R.id.action_sort_by_last_modified),
-                    menu.findItem(R.id.action_sort_order_ascending),
-                    menu.findItem(R.id.action_sort_directories_first),
-                    menu.findItem(R.id.action_view_sort_path_specific),
-                    menu.findItem(R.id.action_select_all),
-                    menu.findItem(R.id.action_show_hidden_files),
-                    menu.findItem(R.id.action_new_tab)
+                    menu, item(R.id.action_search), item(R.id.action_view_sort),
+                    item(R.id.action_view), item(R.id.action_view_adjust),
+                    item(R.id.action_view_list), item(R.id.action_view_grid),
+                    item(R.id.action_sort_by_name), item(R.id.action_sort_by_type),
+                    item(R.id.action_sort_by_size), item(R.id.action_sort_by_last_modified),
+                    item(R.id.action_sort_order_ascending),
+                    item(R.id.action_sort_directories_first),
+                    item(R.id.action_show_hidden_files),
+                    detached.add(""), detached.add(""), detached.add("")
                 )
             }
         }

@@ -25,6 +25,7 @@ import android.util.AttributeSet
 import android.view.Gravity
 import android.view.MotionEvent
 import android.view.View
+import androidx.core.view.isVisible
 import android.widget.HorizontalScrollView
 import android.widget.ImageButton
 import android.widget.LinearLayout
@@ -125,6 +126,7 @@ class FileTabBar @JvmOverloads constructor(
                     if (item.isSelected) selectedColor else unselectedColor
                 )
                 binding.closeButton.imageTintList = buttonColor
+                binding.closeButton.isVisible = items.size > 1
                 binding.closeButton.setOnClickListener { onClose(item.id) }
                 binding.root.setOnClickListener { onSelect(item.id) }
                 binding.root.setOnLongClickListener { beginDrag(it, item.id) }

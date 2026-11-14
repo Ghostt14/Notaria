@@ -22,7 +22,7 @@ import me.zhanghai.android.files.compat.isPrimaryCompat
 import me.zhanghai.android.files.compat.pathCompat
 import me.zhanghai.android.files.file.JavaFile
 import me.zhanghai.android.files.file.asFileSize
-import me.zhanghai.android.files.ftpserver.FtpServerActivity
+import me.zhanghai.android.files.trash.TrashManager
 import me.zhanghai.android.files.settings.Settings
 import me.zhanghai.android.files.settings.SettingsActivity
 import me.zhanghai.android.files.settings.StandardDirectoryListActivity
@@ -31,6 +31,7 @@ import me.zhanghai.android.files.storage.FileSystemRoot
 import me.zhanghai.android.files.storage.Storage
 import me.zhanghai.android.files.storage.StorageVolumeListLiveData
 import me.zhanghai.android.files.util.createIntent
+import me.zhanghai.android.files.app.EXTRA_SLIDE
 import me.zhanghai.android.files.util.isMounted
 import me.zhanghai.android.files.util.putArgs
 import me.zhanghai.android.files.util.supportsExternalStorageManager
@@ -39,6 +40,9 @@ import me.zhanghai.android.files.util.valueCompat
 val navigationItems: List<NavigationItem?>
     get() =
         mutableListOf<NavigationItem?>().apply {
+            add(HomeItem())
+            add(TrashItem())
+            add(null)
             addAll(storageItems)
             if (Environment::class.supportsExternalStorageManager()) {
                 // Starting with R, we can get read/write access to non-primary storage volumes with
@@ -70,7 +74,8 @@ private val storageItems: List<NavigationItem>
         }
 
 private abstract class PathItem(val path: Path) : NavigationItem() {
-    override fun isChecked(listener: Listener): Boolean = listener.currentPath == path
+    override fun isChecked(listener: Listener): Boolean =
+        !listener.isHomeShown && listener.currentPath == path
 
     override fun onClick(listener: Listener) {
         if (this is NavigationRoot) {
@@ -353,20 +358,50 @@ private class BookmarkDirectoryItem(
     }
 }
 
+private class HomeItem : NavigationItem() {
+    override val id: Long = R.string.home_title.toLong()
+
+    @DrawableRes
+    override val iconRes: Int = R.drawable.home_icon_white_24dp
+
+    override fun getTitle(context: Context): String = context.getString(R.string.home_title)
+
+    override fun isChecked(listener: Listener): Boolean = listener.isHomeShown
+
+    override fun onClick(listener: Listener) {
+        listener.showHome()
+        listener.closeNavigationDrawer()
+    }
+}
+
+private class TrashItem : NavigationItem() {
+    override val id: Long = R.string.trash_title.toLong()
+
+    @DrawableRes
+    override val iconRes: Int = R.drawable.delete_icon_control_normal_24dp
+
+    override fun getTitle(context: Context): String = context.getString(R.string.trash_title)
+
+    override fun isChecked(listener: Listener): Boolean =
+        !listener.isHomeShown && TrashManager.isInTrash(listener.currentPath)
+
+    override fun onClick(listener: Listener) {
+        TrashManager.trashDir.mkdirs()
+        listener.navigateTo(Paths.get(TrashManager.trashDir.path))
+        listener.closeNavigationDrawer()
+    }
+}
+
 private val menuItems: List<NavigationItem>
-    @Size(3)
+    @Size(2)
     get() = listOf(
         IntentMenuItem(
-            R.drawable.shared_directory_icon_white_24dp, R.string.navigation_ftp_server,
-            FtpServerActivity::class.createIntent()
-        ),
-        IntentMenuItem(
             R.drawable.settings_icon_white_24dp, R.string.navigation_settings,
-            SettingsActivity::class.createIntent()
+            SettingsActivity::class.createIntent().putExtra(EXTRA_SLIDE, true)
         ),
         IntentMenuItem(
             R.drawable.about_icon_white_24dp, R.string.navigation_about,
-            AboutActivity::class.createIntent()
+            AboutActivity::class.createIntent().putExtra(EXTRA_SLIDE, true)
         )
     )
 

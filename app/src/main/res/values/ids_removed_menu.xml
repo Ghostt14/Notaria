@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+
+<!--
+  ~ Notaria: these actions were removed from the toolbar overflow menu, but the fragment's
+  ~ (now unreachable) handlers still reference their ids.
+  -->
+<resources>
+    <item name="action_new_task" type="id" />
+    <item name="action_navigate_up" type="id" />
+    <item name="action_navigate_to" type="id" />
+    <item name="action_refresh" type="id" />
+    <item name="action_open_in_terminal" type="id" />
+    <item name="action_new_tab" type="id" />
+    <item name="action_view_sort_path_specific" type="id" />
+</resources>

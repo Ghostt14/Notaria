@@ -233,22 +233,6 @@
             android:theme="@style/Theme.MaterialFiles.Translucent" />
 
         <activity
-            android:name="me.zhanghai.android.files.ftpserver.FtpServerActivity"
-            android:exported="true"
-            android:label="@string/ftp_server_title"
-            android:launchMode="singleTop"
-            android:theme="@style/Theme.MaterialFiles">
-            <intent-filter>
-                <action android:name="me.zhanghai.android.files.intent.action.MANAGE_FTP_SERVER" />
-                <category android:name="android.intent.category.DEFAULT" />
-            </intent-filter>
-            <intent-filter>
-                <action android:name="android.service.quicksettings.action.QS_TILE_PREFERENCES" />
-                <category android:name="android.intent.category.DEFAULT" />
-            </intent-filter>
-        </activity>
-
-        <activity
             android:name="me.zhanghai.android.files.settings.SettingsActivity"
             android:exported="true"
             android:label="@string/settings_title"
@@ -360,29 +344,6 @@
         </service>
 
         <service
-            android:name="me.zhanghai.android.files.ftpserver.FtpServerService"
-            android:foregroundServiceType="specialUse">
-            <property
-                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
-                android:value="This is a generic file manager app offering a FTP server functionality that allows serving files from local or network storages to the local network, and users expect it to keep serving in the background for days or even weeks once they start it and until they manually end it, so that this service has to use specialUse to maintain the user expected behavior of keeping serving the files until manually ended." />
-        </service>
-
-        <service
-            android:name="me.zhanghai.android.files.ftpserver.FtpServerTileService"
-            android:exported="true"
-            android:icon="@drawable/shared_directory_icon_white_24dp"
-            android:label="@string/ftp_server_title"
-            android:permission="android.permission.BIND_QUICK_SETTINGS_TILE"
-            tools:ignore="NewApi">
-            <intent-filter>
-                <action android:name="android.service.quicksettings.action.QS_TILE"/>
-            </intent-filter>
-            <meta-data
-                android:name="android.service.quicksettings.TOGGLEABLE_TILE"
-                android:value="true" />
-        </service>
-
-        <service
             android:name="androidx.appcompat.app.AppLocalesMetadataHolderService"
             android:enabled="false"
             android:exported="false">
@@ -412,6 +373,5 @@
 
         <receiver android:name="me.zhanghai.android.files.filejob.FileJobReceiver" />
 
-        <receiver android:name="me.zhanghai.android.files.ftpserver.FtpServerReceiver" />
     </application>
 </manifest>

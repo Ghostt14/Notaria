@@ -22,6 +22,7 @@ import me.zhanghai.android.files.R
 import me.zhanghai.android.files.app.AppActivity
 import me.zhanghai.android.files.file.MimeType
 import me.zhanghai.android.files.navigation.NavigationRootMapLiveData
+import me.zhanghai.android.files.trash.TrashManager
 import me.zhanghai.android.files.settings.ParcelValueSettingLiveData
 import me.zhanghai.android.files.settings.SettingLiveData
 import me.zhanghai.android.files.settings.Settings
@@ -74,7 +75,7 @@ class FileListActivity : AppActivity() {
                 emptyList()
             } else {
                 tabs.mapIndexed { index, tabInfo ->
-                    TabItem(tabInfo.id, getTabTitle(tabInfo.path), index == selectedTabIndex)
+                    TabItem(tabInfo.id, getTabTitle(tabInfo), index == selectedTabIndex)
                 }
             }
 
@@ -82,23 +83,17 @@ class FileListActivity : AppActivity() {
         super.onCreate(savedInstanceState)
 
         setContentView(R.layout.file_list_tab_container)
+        // Drop trash items older than the retention period.
+        Thread { runCatching { TrashManager.purgeExpired() } }.start()
         onBackPressedDispatcher.addCallback(this, closeTabOnBackPressedCallback)
         // Tab titles can come from bookmark names; repaint the strip when a
         // bookmark is renamed (or added/removed) while its tab sits open.
         Settings.BOOKMARK_DIRECTORIES.observe(this) { notifyTabBar() }
 
         if (savedInstanceState == null) {
-            // Restore the persisted tab set on a cold start (survives reboots and app
-            // updates); an explicit intent (e.g. a VIEW of a directory) opens on top of it.
-            val persistedState = if (!isInPickMode) openTabsSetting.value else null
-            if (persistedState != null && persistedState.tabs.isNotEmpty()) {
-                restoreTabs(persistedState)
-                if (intent.action != Intent.ACTION_MAIN) {
-                    addTab(FileListFragment.Args(intent), null)
-                }
-            } else {
-                addTab(FileListFragment.Args(intent), null)
-            }
+            // Every cold start opens a single tab: Home for a normal launch, or the folder
+            // of an explicit intent (e.g. a VIEW of a directory).
+            addTab(FileListFragment.Args(intent), null)
         } else {
             val state = savedInstanceState.getState<State>()
             nextTabId = state.nextTabId
@@ -143,10 +138,11 @@ class FileListActivity : AppActivity() {
 
     // The tab bar's "+" button: duplicate the current location into a new tab.
     fun openCurrentPathInNewTab() {
-        openInNewTab(
-            tabs.getOrNull(selectedTabIndex)?.path
-                ?: Settings.FILE_LIST_DEFAULT_DIRECTORY.valueCompat
-        )
+        // Notaria: "+" opens a fresh Home tab.
+        if (isInPickMode) {
+            return
+        }
+        addTab(FileListFragment.Args(Intent(Intent.ACTION_MAIN)), null)
     }
 
     fun selectTabById(id: Int) {
@@ -266,8 +262,12 @@ class FileListActivity : AppActivity() {
         persistTabs()
     }
 
-    private fun getTabTitle(path: Path?): String {
-        path ?: return getString(R.string.loading)
+    private fun getTabTitle(tabInfo: TabInfo): String {
+        if (tabInfo.isHome) return getString(R.string.home_title)
+        val path = tabInfo.path ?: return getString(R.string.loading)
+        if (path.toString() == TrashManager.trashDir.path) {
+            return getString(R.string.trash_title)
+        }
         NavigationRootMapLiveData.value?.get(path)?.getName(this)?.let { return it }
         // A tab sitting exactly at a bookmarked path shows the bookmark's (custom)
         // name; several bookmarks may share a path, so take the first match.
@@ -276,15 +276,26 @@ class FileListActivity : AppActivity() {
             ?: path.name
     }
 
+    private var observedHomeLiveData: LiveData<Boolean>? = null
+    private val homeObserver = Observer<Boolean> { isHome ->
+        tabs.getOrNull(selectedTabIndex)?.isHome = isHome
+        notifyTabBar()
+    }
+
     private fun observeCurrentPath(fragment: FileListFragment) {
         observedCurrentPathLiveData = fragment.currentPathLiveData.also {
             it.observe(this, currentPathObserver)
+        }
+        observedHomeLiveData = fragment.isHomeLiveData.also {
+            it.observe(this, homeObserver)
         }
     }
 
     private fun stopObservingCurrentPath() {
         observedCurrentPathLiveData?.removeObserver(currentPathObserver)
         observedCurrentPathLiveData = null
+        observedHomeLiveData?.removeObserver(homeObserver)
+        observedHomeLiveData = null
     }
 
     private fun updateTabState() {
@@ -304,7 +315,7 @@ class FileListActivity : AppActivity() {
 
     private fun getTabFragmentTag(id: Int): String = "tab_$id"
 
-    private class TabInfo(val id: Int, var path: Path?)
+    private class TabInfo(val id: Int, var path: Path?, var isHome: Boolean = false)
 
     @Parcelize
     private class TabState(

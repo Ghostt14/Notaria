@@ -1,21 +1,32 @@
 <?xml version="1.0" encoding="utf-8"?>
 
-<!--
-  ~ Copyright (c) 2018 Hai Zhang <dreaming.in.code.zh@gmail.com>
-  ~ All Rights Reserved.
-  -->
-
 <menu
     xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     xmlns:tools="http://schemas.android.com/tools"
     tools:ignore="AlwaysShowAction">
 
+    <!-- Kept for the paste logic; the paste button itself is the toolbar's left side. -->
     <item
         android:id="@+id/action_paste"
         android:alphabeticShortcut="v"
         android:icon="@drawable/paste_icon_control_normal_24dp"
         android:orderInCategory="100"
         android:title="@string/paste"
+        android:visible="false"
+        app:showAsAction="never" />
+
+    <item
+        android:id="@+id/action_create_directory_paste"
+        android:icon="@drawable/create_folder_icon_control_normal_24dp"
+        android:orderInCategory="100"
+        android:title="@string/file_create_directory_title"
+        app:showAsAction="always" />
+
+    <item
+        android:id="@+id/action_cancel_paste"
+        android:icon="@drawable/close_icon_control_normal_24dp"
+        android:orderInCategory="100"
+        android:title="@android:string/cancel"
         app:showAsAction="always" />
 </menu>

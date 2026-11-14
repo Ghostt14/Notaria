@@ -678,7 +678,7 @@
     <string name="storage_edit_webdav_server_add">Add</string>
 
     <string name="navigation_storage_subtitle_format">%1$s free of %2$s</string>
-    <string name="navigation_add_storage">Add storage…</string>
+    <string name="navigation_add_storage">Connect to NAS or network…</string>
     <string name="navigation_standard_directory_alarms">Alarms</string>
     <string name="navigation_standard_directory_dcim">DCIM</string>
     <string name="navigation_standard_directory_documents">Documents</string>
@@ -809,4 +809,33 @@
     <string name="file_list_action_new_tab">New tab</string>
     <string name="file_list_close_tab">Close tab</string>
     <string name="file_item_action_open_in_new_tab">Open in new tab</string>
+    <string name="trash_title">Trash</string>
+    <string name="trash_moved_to_trash">Moved to trash</string>
+    <string name="trash_move_failed">Could not move to trash</string>
+    <string name="trash_restore">Restore</string>
+    <string name="trash_restored">Restored</string>
+    <string name="trash_delete_forever">Delete forever</string>
+    <string name="trash_empty">Empty trash</string>
+    <string name="trash_empty_confirm">Permanently delete everything in the trash?</string>
+    <string name="home_title">Home</string>
+    <string name="home_in_use">in use</string>
+    <string name="home_images">Images</string>
+    <string name="home_videos">Videos</string>
+    <string name="home_audio">Audio files</string>
+    <string name="home_documents">Documents</string>
+    <string name="home_downloads">Downloads</string>
+    <string name="home_install_files">Install files</string>
+    <string name="home_archives">Compressed files</string>
+    <string name="home_other">Other (system, apps and more)</string>
+    <string name="file_list_action_sort">Sort</string>
+    <string name="file_list_action_view">View</string>
+    <string name="file_list_action_view_adjust">Adjust size…</string>
+    <string name="file_list_group_today">Today</string>
+    <string name="file_list_group_week">This week</string>
+    <string name="file_list_group_month">This month</string>
+    <string name="file_list_group_earlier">Earlier</string>
+    <plurals name="file_item_count_format">
+        <item quantity="one">%d item</item>
+        <item quantity="other">%d items</item>
+    </plurals>
 </resources>
