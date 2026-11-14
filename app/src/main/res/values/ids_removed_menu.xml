@@ -12,4 +12,18 @@
     <item name="action_open_in_terminal" type="id" />
     <item name="action_new_tab" type="id" />
     <item name="action_view_sort_path_specific" type="id" />
+    <item name="settingsContainer" type="id" />
+    <item name="action_view_adjust" type="id" />
+    <item name="action_empty_trash" type="id" />
+    <item name="action_view_list" type="id" />
+    <item name="action_view_grid" type="id" />
+    <item name="action_sort_by_name" type="id" />
+    <item name="action_sort_by_type" type="id" />
+    <item name="action_sort_by_size" type="id" />
+    <item name="action_sort_by_last_modified" type="id" />
+    <item name="action_sort_order_ascending" type="id" />
+    <item name="action_sort_directories_first" type="id" />
+    <item name="action_show_hidden_files" type="id" />
+    <item name="action_view_sort" type="id" />
+    <item name="action_view" type="id" />
 </resources>

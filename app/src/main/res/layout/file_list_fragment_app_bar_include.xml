@@ -54,11 +54,30 @@
             android:layout_height="44dp"
             android:visibility="gone" />
 
-        <me.zhanghai.android.files.filelist.BreadcrumbLayout
-            android:id="@+id/breadcrumbLayout"
+        <LinearLayout
+            android:id="@+id/breadcrumbBar"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:paddingStart="@dimen/content_start_margin_minus_12dp"
-            android:paddingEnd="@dimen/screen_edge_margin_minus_12dp" />
+            android:gravity="center_vertical"
+            android:orientation="horizontal">
+
+            <me.zhanghai.android.files.filelist.BreadcrumbLayout
+                android:id="@+id/breadcrumbLayout"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:paddingStart="@dimen/content_start_margin_minus_12dp"
+                android:paddingEnd="4dp" />
+
+            <!-- Sort and view: always reachable, also while searching. -->
+            <ImageButton
+                android:id="@+id/sortButton"
+                android:layout_width="48dp"
+                android:layout_height="48dp"
+                android:layout_marginEnd="8dp"
+                android:background="?attr/selectableItemBackgroundBorderless"
+                android:contentDescription="@string/file_list_action_sort_and_view"
+                android:src="@drawable/sort_icon_control_normal_24dp" />
+        </LinearLayout>
     </me.zhanghai.android.files.ui.CoordinatorAppBarLayout>
 </merge>

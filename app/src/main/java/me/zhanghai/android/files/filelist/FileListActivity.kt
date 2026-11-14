@@ -138,11 +138,17 @@ class FileListActivity : AppActivity() {
 
     // The tab bar's "+" button: duplicate the current location into a new tab.
     fun openCurrentPathInNewTab() {
-        // Notaria: "+" opens a fresh Home tab.
+        // Notaria: "+" duplicates the tab that is currently selected.
         if (isInPickMode) {
             return
         }
-        addTab(FileListFragment.Args(Intent(Intent.ACTION_MAIN)), null)
+        val current = tabs.getOrNull(selectedTabIndex)
+        val path = current?.path
+        if (current == null || current.isHome || current.isSettings || path == null) {
+            addTab(FileListFragment.Args(Intent(Intent.ACTION_MAIN)), null)
+        } else {
+            openInNewTab(path)
+        }
     }
 
     fun selectTabById(id: Int) {
@@ -264,6 +270,7 @@ class FileListActivity : AppActivity() {
 
     private fun getTabTitle(tabInfo: TabInfo): String {
         if (tabInfo.isHome) return getString(R.string.home_title)
+        if (tabInfo.isSettings) return getString(R.string.settings_title)
         val path = tabInfo.path ?: return getString(R.string.loading)
         if (path.toString() == TrashManager.trashDir.path) {
             return getString(R.string.trash_title)
@@ -277,6 +284,11 @@ class FileListActivity : AppActivity() {
     }
 
     private var observedHomeLiveData: LiveData<Boolean>? = null
+    private var observedSettingsLiveData: LiveData<Boolean>? = null
+    private val settingsObserver = Observer<Boolean> { isSettings ->
+        tabs.getOrNull(selectedTabIndex)?.isSettings = isSettings
+        notifyTabBar()
+    }
     private val homeObserver = Observer<Boolean> { isHome ->
         tabs.getOrNull(selectedTabIndex)?.isHome = isHome
         notifyTabBar()
@@ -289,6 +301,9 @@ class FileListActivity : AppActivity() {
         observedHomeLiveData = fragment.isHomeLiveData.also {
             it.observe(this, homeObserver)
         }
+        observedSettingsLiveData = fragment.isSettingsLiveData.also {
+            it.observe(this, settingsObserver)
+        }
     }
 
     private fun stopObservingCurrentPath() {
@@ -296,6 +311,8 @@ class FileListActivity : AppActivity() {
         observedCurrentPathLiveData = null
         observedHomeLiveData?.removeObserver(homeObserver)
         observedHomeLiveData = null
+        observedSettingsLiveData?.removeObserver(settingsObserver)
+        observedSettingsLiveData = null
     }
 
     private fun updateTabState() {
@@ -315,7 +332,12 @@ class FileListActivity : AppActivity() {
 
     private fun getTabFragmentTag(id: Int): String = "tab_$id"
 
-    private class TabInfo(val id: Int, var path: Path?, var isHome: Boolean = false)
+    private class TabInfo(
+        val id: Int,
+        var path: Path?,
+        var isHome: Boolean = false,
+        var isSettings: Boolean = false
+    )
 
     @Parcelize
     private class TabState(

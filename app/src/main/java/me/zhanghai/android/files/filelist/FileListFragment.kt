@@ -179,7 +179,11 @@ class FileListFragment : Fragment(), BreadcrumbLayout.Listener, FileListAdapter.
     val isHomeLiveData: LiveData<Boolean>
         get() = viewModel.isHomeLiveData
 
+    val isSettingsLiveData: LiveData<Boolean>
+        get() = viewModel.isSettingsLiveData
+
     private lateinit var homeView: HomeView
+    private lateinit var settingsContainer: androidx.fragment.app.FragmentContainerView
 
     // The last visited path, saved in the instance state so that each tab can restore its
     // location after process death (the view model trail itself isn't saved).
@@ -258,11 +262,29 @@ class FileListFragment : Fragment(), BreadcrumbLayout.Listener, FileListAdapter.
         homeView = HomeView(requireContext()).also {
             it.setBackgroundColor(
                 com.google.android.material.color.MaterialColors.getColor(
-                    binding.contentLayout, com.google.android.material.R.attr.colorSurface
+                    binding.contentLayout, com.google.android.material.R.attr.colorSurface,
+                    android.graphics.Color.WHITE
                 )
             )
             it.visibility = View.GONE
             it.onOpenDirectory = { directory -> navigateTo(Paths.get(directory.path)) }
+            it.onOpenStorage = { path -> navigateTo(path) }
+            it.onOpenFile = { file -> openHomeFile(file) }
+            binding.contentLayout.addView(
+                it, ViewGroup.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT
+                )
+            )
+        }
+        settingsContainer = androidx.fragment.app.FragmentContainerView(requireContext()).also {
+            it.id = R.id.settingsContainer
+            it.setBackgroundColor(
+                com.google.android.material.color.MaterialColors.getColor(
+                    binding.contentLayout, com.google.android.material.R.attr.colorSurface,
+                    android.graphics.Color.WHITE
+                )
+            )
+            it.visibility = View.GONE
             binding.contentLayout.addView(
                 it, ViewGroup.LayoutParams(
                     ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT
@@ -281,6 +303,7 @@ class FileListFragment : Fragment(), BreadcrumbLayout.Listener, FileListAdapter.
         }
         binding.appBarLayout.syncBackgroundColorTo(binding.overlayToolbar)
         binding.breadcrumbLayout.setListener(this)
+        binding.sortButton.setOnClickListener { showSortViewSheet() }
         if (!(activity.hasSw600Dp && activity.isOrientationLandscape)) {
             binding.swipeRefreshLayout.setProgressViewEndTarget(
                 true, binding.swipeRefreshLayout.progressViewEndOffset
@@ -312,20 +335,25 @@ class FileListFragment : Fragment(), BreadcrumbLayout.Listener, FileListAdapter.
         addOnBackPressedCallback(
             object : OnBackPressedCallback(false) {
                 override fun handleOnBackPressed() {
-                    viewModel.navigateUp()
+                    if (!viewModel.navigateUp()) {
+                        // Nothing left to go back to in this folder trail: return to Home.
+                        showHome()
+                    }
                 }
             }
                 .also { callback ->
                     val update = {
                         callback.isEnabled =
-                            viewModel.canNavigateUpBreadcrumb && !viewModel.isHome
+                            (viewModel.canNavigateUpBreadcrumb || viewModel.cameFromHome) &&
+                                !viewModel.isHome && !viewModel.isSettings
                     }
                     viewModel.breadcrumbLiveData.observe(viewLifecycleOwner) { update() }
                     viewModel.isHomeLiveData.observe(viewLifecycleOwner) { update() }
+                    viewModel.isSettingsLiveData.observe(viewLifecycleOwner) { update() }
                 }
         )
         addOnBackPressedCallback(overlayActionMode.onBackPressedCallback)
-        // Back clears the selection pill, but must not cancel a pending paste.
+        // Back clears the selection pill or cancels a pending paste.
         addOnBackPressedCallback(bottomActionMode.onBackPressedCallback)
         addOnBackPressedCallback(SpeedDialViewOnBackPressedCallback(binding.speedDialView))
         binding.drawerLayout?.let {
@@ -429,6 +457,7 @@ class FileListFragment : Fragment(), BreadcrumbLayout.Listener, FileListAdapter.
             onShowHiddenFilesChanged(it)
         }
         viewModel.isHomeLiveData.observe(viewLifecycleOwner) { onHomeChanged(it) }
+        viewModel.isSettingsLiveData.observe(viewLifecycleOwner) { onSettingsChanged(it) }
         Settings.FILE_LIST_SCALE.observe(viewLifecycleOwner) {
             adapter.scale = it
             updateSpanCount()
@@ -436,9 +465,45 @@ class FileListFragment : Fragment(), BreadcrumbLayout.Listener, FileListAdapter.
         updateTabBar()
     }
 
+    // Opens a file chosen from the Recent row of Home with whatever app handles it.
+    private fun openHomeFile(file: java.io.File) {
+        val uri = Paths.get(file.path).fileProviderUri
+        val mime = android.webkit.MimeTypeMap.getSingleton()
+            .getMimeTypeFromExtension(file.extension.lowercase()) ?: "*/*"
+        val intent = Intent(Intent.ACTION_VIEW)
+            .setDataAndType(uri, mime)
+            .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        startActivitySafe(Intent.createChooser(intent, null))
+    }
+
+    private fun onSettingsChanged(isSettings: Boolean) {
+        // Created only when Settings is first opened, so it can't affect app startup.
+        if (isSettings && childFragmentManager.findFragmentById(R.id.settingsContainer) == null) {
+            childFragmentManager.commit {
+                add(
+                    R.id.settingsContainer,
+                    me.zhanghai.android.files.settings.SettingsPreferenceFragment()
+                )
+            }
+        }
+        settingsContainer.isVisible = isSettings
+        updateSpecialScreen()
+        requireActivity().setTitle(
+            if (isSettings) R.string.settings_title else R.string.file_list_title
+        )
+    }
+
+    private fun updateSpecialScreen() {
+        val special = viewModel.isHome || viewModel.isSettings
+        binding.breadcrumbBar.isVisible = !special
+        binding.speedDialView.isVisible = !special
+        requireActivity().invalidateOptionsMenu()
+        navigationFragment.refreshChecked()
+    }
+
     private fun onHomeChanged(isHome: Boolean) {
         homeView.isVisible = isHome
-        binding.breadcrumbLayout.isVisible = !isHome
+        binding.breadcrumbBar.isVisible = !isHome
         binding.speedDialView.isVisible = !isHome
         if (isHome) {
             collapseSearchView()
@@ -452,7 +517,16 @@ class FileListFragment : Fragment(), BreadcrumbLayout.Listener, FileListAdapter.
         get() = viewModel.isHome
 
     override fun showHome() {
+        viewModel.cameFromHome = false
+        viewModel.isSettings = false
         viewModel.isHome = true
+    }
+
+    override val isSettingsShown: Boolean
+        get() = viewModel.isSettings
+
+    override fun showSettings() {
+        viewModel.isSettings = true
     }
 
     override fun onResume() {
@@ -470,7 +544,6 @@ class FileListFragment : Fragment(), BreadcrumbLayout.Listener, FileListAdapter.
         super.onCreateOptionsMenu(menu, inflater)
 
         menuBinding = MenuBinding.inflate(menu, inflater, requireContext())
-        menuBinding.viewSortItem.subMenu!!.setGroupDividerEnabledCompat(true)
         setUpSearchView()
     }
 
@@ -541,7 +614,7 @@ class FileListFragment : Fragment(), BreadcrumbLayout.Listener, FileListAdapter.
                 true
             }
             R.id.action_view_adjust -> {
-                showViewAdjustSheet()
+                showSortViewSheet()
                 true
             }
             R.id.action_empty_trash -> {
@@ -783,11 +856,11 @@ class FileListFragment : Fragment(), BreadcrumbLayout.Listener, FileListAdapter.
             return
         }
         val searchViewExpanded = viewModel.isSearchViewExpanded
-        menuBinding.viewSortItem.isVisible = !searchViewExpanded && !viewModel.isHome
+        menuBinding.viewSortItem.isVisible = !searchViewExpanded && !viewModel.isHome && !viewModel.isSettings
         menuBinding.menu.findItem(R.id.action_empty_trash)?.isVisible =
             TrashManager.isInTrash(viewModel.currentPath)
-        menuBinding.viewItem.isVisible = !searchViewExpanded && !viewModel.isHome
-        menuBinding.searchItem.isVisible = !viewModel.isHome
+        menuBinding.viewItem.isVisible = !searchViewExpanded && !viewModel.isHome && !viewModel.isSettings
+        menuBinding.searchItem.isVisible = !viewModel.isHome && !viewModel.isSettings
         if (searchViewExpanded) {
             return
         }
@@ -904,10 +977,19 @@ class FileListFragment : Fragment(), BreadcrumbLayout.Listener, FileListAdapter.
     }
 
     override fun navigateTo(path: Path) {
-        viewModel.isHome = false
+        val wasHome = viewModel.isHome
+        viewModel.isSettings = false
         collapseSearchView()
-        val state = layoutManager.onSaveInstanceState()
-        viewModel.navigateTo(state!!, path)
+        if (wasHome) {
+            // Start a fresh trail so that Back returns to Home.
+            viewModel.cameFromHome = true
+            viewModel.resetTo(path)
+            viewModel.isHome = false
+        } else {
+            viewModel.isHome = false
+            val state = layoutManager.onSaveInstanceState()
+            viewModel.navigateTo(state!!, path)
+        }
     }
 
     override fun copyPath(path: Path) {
@@ -1078,34 +1160,34 @@ class FileListFragment : Fragment(), BreadcrumbLayout.Listener, FileListAdapter.
         val menu = bottomActionMode.menu
         val inTrash = TrashManager.isInTrash(viewModel.currentPath)
         val isAnyFileReadOnly = files.any { it.path.fileSystem.isReadOnly }
-        menu.findItem(R.id.action_cut).isVisible = !isAnyFileReadOnly && !inTrash
+        menu.findItem(R.id.action_cut).isVisible = false
         val areAllFilesArchivePaths = files.all { it.path.isArchivePath }
-        menu.findItem(R.id.action_copy)
-            .setIcon(
-                if (areAllFilesArchivePaths) {
-                    R.drawable.extract_icon_control_normal_24dp
-                } else {
-                    R.drawable.copy_icon_control_normal_24dp
-                }
-            )
-            .setTitle(
-                if (areAllFilesArchivePaths) {
-                    R.string.file_list_select_action_extract
-                } else {
-                    R.string.copy
-                }
-            )
-            .isVisible = !inTrash
+        val allSelected = files.size >= adapter.itemCount
+        val isCurrentPathReadOnly = viewModel.currentPath.fileSystem.isReadOnly
+        // Copy: copy a file, or extract when browsing inside an archive.
+        menu.findItem(R.id.action_copy).isVisible = !inTrash
         menu.findItem(R.id.action_delete).apply {
             isVisible = !isAnyFileReadOnly
             setTitle(if (inTrash) R.string.trash_delete_forever else R.string.delete)
         }
         menu.findItem(R.id.action_restore).isVisible = inTrash
-        menu.findItem(R.id.action_share).isVisible = !inTrash
-        menu.findItem(R.id.action_rename).isVisible = files.size == 1 && !isAnyFileReadOnly && !inTrash
-        menu.findItem(R.id.action_extract).isVisible = files.all { it.isArchiveFile }
+        menu.findItem(R.id.action_share).isVisible = !inTrash && !areAllFilesArchivePaths
+        menu.findItem(R.id.action_rename).isVisible =
+            files.size == 1 && !isAnyFileReadOnly && !inTrash
+        // Compress only makes sense for several files at once.
         menu.findItem(R.id.action_archive).isVisible =
-            !viewModel.currentPath.fileSystem.isReadOnly && !inTrash
+            files.size > 1 && !isCurrentPathReadOnly && !inTrash
+        menu.findItem(R.id.action_extract).isVisible =
+            !inTrash && files.all { it.isArchiveFile }
+        menu.findItem(R.id.action_select_all).isVisible = !allSelected
+        // Pill content stays centered and only as wide as its buttons.
+        binding.bottomToolbar.layoutParams = (binding.bottomToolbar.layoutParams as
+            android.widget.FrameLayout.LayoutParams).also {
+            it.width = ViewGroup.LayoutParams.WRAP_CONTENT
+            it.gravity = android.view.Gravity.CENTER_HORIZONTAL
+        }
+        binding.bottomToolbar.minimumWidth =
+            (260 * resources.displayMetrics.density).toInt()
         if (!bottomActionMode.isActive) {
             bottomActionMode.start(object : ToolbarActionMode.Callback {
                 override fun onToolbarActionModeMenuItemClicked(
@@ -1125,22 +1207,118 @@ class FileListFragment : Fragment(), BreadcrumbLayout.Listener, FileListAdapter.
         }
     }
 
-    // The view slider.
-    private fun showViewAdjustSheet() {
+    // One sheet for everything about how the list looks: sort, order, view and size.
+    private fun showSortViewSheet() {
         val context = requireContext()
         val density = resources.displayMetrics.density
+        fun dp(value: Int) = (value * density).toInt()
         val sheet = com.google.android.material.bottomsheet.BottomSheetDialog(context)
         val content = android.widget.LinearLayout(context).apply {
             orientation = android.widget.LinearLayout.VERTICAL
-            val pad = (24 * density).toInt()
-            setPadding(pad, pad, pad, pad)
+            setPadding(dp(24), dp(20), dp(24), dp(28))
         }
-        content.addView(android.widget.TextView(context).apply {
-            setText(R.string.file_list_action_view_adjust)
+        fun label(textRes: Int) = android.widget.TextView(context).apply {
+            setText(textRes)
             setTextAppearance(
-                com.google.android.material.R.style.TextAppearance_Material3_TitleMedium
+                com.google.android.material.R.style.TextAppearance_Material3_LabelLarge
+            )
+            setPadding(0, dp(16), 0, dp(8))
+        }
+        fun switchRow(textRes: Int, checked: Boolean, onChange: (Boolean) -> Unit) =
+            com.google.android.material.materialswitch.MaterialSwitch(context).apply {
+                setText(textRes)
+                isChecked = checked
+                setOnCheckedChangeListener { _, isChecked -> onChange(isChecked) }
+            }
+
+        content.addView(android.widget.TextView(context).apply {
+            setText(R.string.file_list_action_sort_and_view)
+            setTextAppearance(
+                com.google.android.material.R.style.TextAppearance_Material3_TitleLarge
             )
         })
+
+        // Sort by.
+        content.addView(label(R.string.file_list_sort_by))
+        val sortOptions = viewModel.sortOptions
+        val sortGroup = com.google.android.material.button.MaterialButtonToggleGroup(context).apply {
+            isSingleSelection = true
+            isSelectionRequired = true
+        }
+        val sortEntries = listOf(
+            By.NAME to R.string.file_list_action_sort_by_name,
+            By.TYPE to R.string.file_list_action_sort_by_type,
+            By.SIZE to R.string.file_list_action_sort_by_size,
+            By.LAST_MODIFIED to R.string.file_list_action_sort_by_last_modified
+        )
+        val sortButtons = sortEntries.map { (by, titleRes) ->
+            com.google.android.material.button.MaterialButton(
+                context, null, com.google.android.material.R.attr.materialButtonOutlinedStyle
+            ).apply {
+                id = View.generateViewId()
+                setText(titleRes)
+                isAllCaps = false
+                maxLines = 1
+                insetTop = 0
+                insetBottom = 0
+                sortGroup.addView(this, android.widget.LinearLayout.LayoutParams(0, dp(44), 1f))
+            } to by
+        }
+        sortButtons.firstOrNull { it.second == sortOptions.by }?.let { sortGroup.check(it.first.id) }
+        sortGroup.addOnButtonCheckedListener { _, checkedId, isChecked ->
+            if (isChecked) {
+                sortButtons.firstOrNull { it.first.id == checkedId }
+                    ?.let { viewModel.setSortBy(it.second) }
+            }
+        }
+        content.addView(sortGroup, android.widget.LinearLayout.LayoutParams(
+            android.view.ViewGroup.LayoutParams.MATCH_PARENT,
+            android.view.ViewGroup.LayoutParams.WRAP_CONTENT
+        ))
+        content.addView(switchRow(
+            R.string.file_list_action_sort_order_ascending, sortOptions.order == Order.ASCENDING
+        ) { viewModel.setSortOrder(if (it) Order.ASCENDING else Order.DESCENDING) })
+        content.addView(switchRow(
+            R.string.file_list_action_sort_directories_first, sortOptions.isDirectoriesFirst
+        ) { viewModel.setSortDirectoriesFirst(it) })
+
+        // View.
+        content.addView(label(R.string.file_list_view_as))
+        val viewGroup = com.google.android.material.button.MaterialButtonToggleGroup(context).apply {
+            isSingleSelection = true
+            isSelectionRequired = true
+        }
+        val viewEntries = listOf(
+            FileViewType.LIST to R.string.file_list_action_view_list,
+            FileViewType.GRID to R.string.file_list_action_view_grid
+        )
+        val viewButtons = viewEntries.map { (type, titleRes) ->
+            com.google.android.material.button.MaterialButton(
+                context, null, com.google.android.material.R.attr.materialButtonOutlinedStyle
+            ).apply {
+                id = View.generateViewId()
+                setText(titleRes)
+                isAllCaps = false
+                insetTop = 0
+                insetBottom = 0
+                viewGroup.addView(this, android.widget.LinearLayout.LayoutParams(0, dp(44), 1f))
+            } to type
+        }
+        viewButtons.firstOrNull { it.second == viewModel.viewType }
+            ?.let { viewGroup.check(it.first.id) }
+        viewGroup.addOnButtonCheckedListener { _, checkedId, isChecked ->
+            if (isChecked) {
+                viewButtons.firstOrNull { it.first.id == checkedId }
+                    ?.let { viewModel.viewType = it.second }
+            }
+        }
+        content.addView(viewGroup, android.widget.LinearLayout.LayoutParams(
+            android.view.ViewGroup.LayoutParams.MATCH_PARENT,
+            android.view.ViewGroup.LayoutParams.WRAP_CONTENT
+        ))
+
+        // Size slider.
+        content.addView(label(R.string.file_list_size))
         content.addView(com.google.android.material.slider.Slider(context).apply {
             valueFrom = 70f
             valueTo = 160f
@@ -1152,7 +1330,30 @@ class FileListFragment : Fragment(), BreadcrumbLayout.Listener, FileListAdapter.
                 }
             }
         })
-        sheet.setContentView(content)
+
+        content.addView(switchRow(
+            R.string.file_list_action_show_hidden_files,
+            Settings.FILE_LIST_SHOW_HIDDEN_FILES.valueCompat
+        ) { Settings.FILE_LIST_SHOW_HIDDEN_FILES.putValue(it) })
+
+        if (TrashManager.isInTrash(viewModel.currentPath)) {
+            content.addView(
+                com.google.android.material.button.MaterialButton(
+                    context, null, com.google.android.material.R.attr.materialButtonOutlinedStyle
+                ).apply {
+                    setText(R.string.trash_empty)
+                    setOnClickListener {
+                        sheet.dismiss()
+                        confirmEmptyTrash()
+                    }
+                },
+                android.widget.LinearLayout.LayoutParams(
+                    android.view.ViewGroup.LayoutParams.MATCH_PARENT,
+                    android.view.ViewGroup.LayoutParams.WRAP_CONTENT
+                ).apply { topMargin = dp(16) }
+            )
+        }
+        sheet.setContentView(android.widget.ScrollView(context).apply { addView(content) })
         sheet.show()
     }
 
@@ -1373,6 +1574,11 @@ class FileListFragment : Fragment(), BreadcrumbLayout.Listener, FileListAdapter.
                 R.drawable.paste_icon_control_normal_24dp, R.string.paste
             )
             binding.bottomToolbar.setOnClickListener { pasteIfPossible() }
+            binding.bottomToolbar.layoutParams = (binding.bottomToolbar.layoutParams as
+                android.widget.FrameLayout.LayoutParams).also {
+                it.width = ViewGroup.LayoutParams.MATCH_PARENT
+            }
+            binding.bottomToolbar.minimumWidth = 0
             bottomActionMode.title = getString(
                 if (areAllFilesArchivePaths) R.string.file_list_paste_action_extract_here
                 else R.string.paste
@@ -1401,7 +1607,6 @@ class FileListFragment : Fragment(), BreadcrumbLayout.Listener, FileListAdapter.
                     onBottomActionModeFinished()
                 }
             })
-            bottomActionMode.onBackPressedCallback.isEnabled = false
         }
     }
 
@@ -1413,6 +1618,27 @@ class FileListFragment : Fragment(), BreadcrumbLayout.Listener, FileListAdapter.
             // In the paste pill the left icon is the paste button.
             pasteIfPossible()
         }
+    }
+
+    // The pill's clipboard button: put the files on the system clipboard so they can be pasted
+    // into other apps (a chat, an email...).
+    private fun copyPasteFilesToSystemClipboard() {
+        val files = viewModel.pasteState.files
+        val uris = files.mapNotNull { file ->
+            runCatching { file.path.fileProviderUri }.getOrNull()
+        }
+        if (uris.isEmpty()) {
+            showToast(R.string.file_list_clipboard_failed)
+            return
+        }
+        val clipData = android.content.ClipData.newUri(
+            requireContext().contentResolver, "Notaria", uris.first()
+        )
+        uris.drop(1).forEach { clipData.addItem(android.content.ClipData.Item(it)) }
+        val clipboard = requireContext()
+            .getSystemService(android.content.ClipboardManager::class.java)
+        clipboard.setPrimaryClip(clipData)
+        showToast(R.string.file_list_clipboard_copied)
     }
 
     private fun pasteIfPossible() {
@@ -1453,7 +1679,7 @@ class FileListFragment : Fragment(), BreadcrumbLayout.Listener, FileListAdapter.
                 true
             }
             R.id.action_cancel_paste -> {
-                bottomActionMode.finish()
+                copyPasteFilesToSystemClipboard()
                 true
             }
             else -> false
@@ -1751,6 +1977,8 @@ class FileListFragment : Fragment(), BreadcrumbLayout.Listener, FileListAdapter.
         get() = viewModel.currentPath
 
     override fun navigateToRoot(path: Path) {
+        viewModel.cameFromHome = viewModel.isHome
+        viewModel.isSettings = false
         viewModel.isHome = false
         collapseSearchView()
         viewModel.resetTo(path)
@@ -1971,6 +2199,8 @@ class FileListFragment : Fragment(), BreadcrumbLayout.Listener, FileListAdapter.
         val overlayToolbar: Toolbar,
         val tabBar: FileTabBar,
         val breadcrumbLayout: BreadcrumbLayout,
+        val breadcrumbBar: ViewGroup,
+        val sortButton: android.widget.ImageButton,
         val contentLayout: ViewGroup,
         val progress: ProgressBar,
         val errorText: TextView,
@@ -1999,7 +2229,8 @@ class FileListFragment : Fragment(), BreadcrumbLayout.Listener, FileListAdapter.
                     bindingRoot, includeBinding.drawerLayout, includeBinding.persistentDrawerLayout,
                     includeBinding.persistentBarLayout, appBarBinding.appBarLayout,
                     appBarBinding.toolbar, appBarBinding.overlayToolbar,
-                    appBarBinding.tabBar, appBarBinding.breadcrumbLayout, contentBinding.contentLayout,
+                    appBarBinding.tabBar, appBarBinding.breadcrumbLayout, appBarBinding.breadcrumbBar,
+                    appBarBinding.sortButton, contentBinding.contentLayout,
                     contentBinding.progress, contentBinding.errorText, contentBinding.emptyView,
                     contentBinding.swipeRefreshLayout, contentBinding.recyclerView,
                     bottomBarBinding.bottomBarLayout, bottomBarBinding.bottomToolbar,

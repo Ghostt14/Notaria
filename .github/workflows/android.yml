@@ -53,12 +53,21 @@ jobs:
       - name: Make gradlew executable
         run: chmod +x gradlew
 
-      - name: Build release APK
-        run: ./gradlew assembleRelease
+      - name: Build release and debug APKs
+        run: ./gradlew assembleRelease assembleDebug
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: Notaria-apk
           path: app/build/outputs/apk/release/*.apk
+          retention-days: 30
+
+      # The debug build is not minified: if it opens but the release one doesn't, the
+      # shrinker is the problem.
+      - name: Upload debug APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: Notaria-debug-apk
+          path: app/build/outputs/apk/debug/*.apk
           retention-days: 30

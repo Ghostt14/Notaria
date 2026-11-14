@@ -75,6 +75,13 @@ class NavigationFragment : Fragment(), NavigationItem.Listener {
         listener.showHome()
     }
 
+    override val isSettingsShown: Boolean
+        get() = listener.isSettingsShown
+
+    override fun showSettings() {
+        listener.showSettings()
+    }
+
     fun refreshChecked() {
         if (this::adapter.isInitialized) {
             adapter.notifyCheckedChanged()
@@ -104,6 +111,8 @@ class NavigationFragment : Fragment(), NavigationItem.Listener {
         fun navigateToDefaultRoot()
         val isHomeShown: Boolean
         fun showHome()
+        val isSettingsShown: Boolean
+        fun showSettings()
         fun observeCurrentPath(owner: LifecycleOwner, observer: (Path) -> Unit)
         fun closeNavigationDrawer()
     }

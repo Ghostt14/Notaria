@@ -56,17 +56,6 @@
 # SMBJ-RPC
 -dontwarn java.rmi.UnmarshalException
 
-# --- Notaria: smaller and faster release build ---
--allowaccessmodification
--repackageclasses ''
--optimizationpasses 5
-
-# Strip Kotlin's runtime null-check intrinsics and verbose logging.
--assumenosideeffects class kotlin.jvm.internal.Intrinsics {
-    public static void check*(...);
-    public static void throw*(...);
-}
--assumenosideeffects class android.util.Log {
-    public static int v(...);
-    public static int d(...);
-}
+# --- Notaria ---
+# Keep line numbers so crash reports are readable.
+-keepattributes SourceFile,LineNumberTable

@@ -249,6 +249,8 @@ class FileListAdapter(
         menu.findItem(R.id.action_copy).isVisible = !hasPickOptions
         val checked = file in selectedFiles
         holder.itemLayout.isChecked = checked
+        // A square check box takes the place of the icon while selected.
+        holder.iconLayout.findViewById<View>(R.id.checkImage)?.isVisible = checked
         holder.nameText.apply {
             if (isSingleLineCompat) {
                 val nameEllipsize = nameEllipsize
@@ -443,6 +445,12 @@ class FileListAdapter(
         }
     }
 
+    override fun onViewRecycled(holder: ViewHolder) {
+        holder.countJob?.cancel()
+        holder.countJob = null
+        super.onViewRecycled(holder)
+    }
+
     private fun applyScale(holder: ViewHolder) {
         val factor = scale / 100f
         holder.nameText.setTextSize(
@@ -485,6 +493,8 @@ class FileListAdapter(
         }
         val scope = holder.itemView.findViewTreeLifecycleOwner()?.lifecycleScope ?: return
         holder.countJob = scope.launch {
+            // Wait a moment so rows that are flung past while scrolling never start counting.
+            kotlinx.coroutines.delay(150)
             val count = withContext(Dispatchers.IO) {
                 runCatching { Files.newDirectoryStream(path).use { it.count() } }.getOrNull()
             } ?: return@launch

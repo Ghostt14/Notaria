@@ -24,13 +24,32 @@ class AddStorageDialogFragment : AppCompatDialogFragment() {
         MaterialAlertDialogBuilder(requireContext(), theme)
             .setTitle(R.string.storage_add_storage_title)
             .apply {
-                val items = STORAGE_TYPES.map { getString(it.first) }.toTypedArray<CharSequence>()
+                val items = FRIENDLY_TYPES.map { getString(it.first) }.toTypedArray<CharSequence>()
                 setItems(items) { _, which ->
-                    startActivitySafe(STORAGE_TYPES[which].second)
-                    finish()
+                    val intent = FRIENDLY_TYPES[which].second
+                    if (intent == null) {
+                        showAdvanced()
+                    } else {
+                        startActivitySafe(intent)
+                        finish()
+                    }
                 }
             }
             .create()
+
+    // The technical options (FTP, SFTP, WebDAV, shortcuts) live one level down.
+    private fun showAdvanced() {
+        MaterialAlertDialogBuilder(requireContext(), theme)
+            .setTitle(R.string.storage_add_storage_more)
+            .setItems(
+                STORAGE_TYPES.map { getString(it.first) }.toTypedArray<CharSequence>()
+            ) { _, which ->
+                startActivitySafe(STORAGE_TYPES[which].second)
+                finish()
+            }
+            .setOnCancelListener { finish() }
+            .show()
+    }
 
     override fun onCancel(dialog: DialogInterface) {
         super.onCancel(dialog)
@@ -39,6 +58,18 @@ class AddStorageDialogFragment : AppCompatDialogFragment() {
     }
 
     companion object {
+        // Plain-language choices for everyone; null means "show the advanced list".
+        private val FRIENDLY_TYPES: List<Pair<Int, android.content.Intent?>> = listOf(
+            R.string.storage_add_storage_nas to AddLanSmbServerActivity::class.createIntent(),
+            R.string.storage_add_storage_google_drive to
+                AddDocumentTreeActivity::class.createIntent(),
+            R.string.storage_add_storage_onedrive to
+                AddDocumentTreeActivity::class.createIntent(),
+            R.string.storage_add_storage_other_cloud to
+                AddDocumentTreeActivity::class.createIntent(),
+            R.string.storage_add_storage_more to null
+        )
+
         private val STORAGE_TYPES = listOfNotNull(
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
                 R.string.storage_add_storage_android_data to

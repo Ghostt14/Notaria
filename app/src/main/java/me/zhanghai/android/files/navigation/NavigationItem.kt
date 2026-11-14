@@ -36,6 +36,8 @@ abstract class NavigationItem {
         fun navigateToRoot(path: Path)
         val isHomeShown: Boolean
         fun showHome()
+        val isSettingsShown: Boolean
+        fun showSettings()
         fun launchIntent(intent: Intent)
         fun closeNavigationDrawer()
     }

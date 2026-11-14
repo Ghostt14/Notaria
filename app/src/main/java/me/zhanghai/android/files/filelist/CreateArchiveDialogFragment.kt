@@ -69,7 +69,6 @@ class CreateArchiveDialogFragment : FileNameDialogFragment() {
             val extension = when (val checkedId = binding.typeGroup.checkedRadioButtonId) {
                 R.id.zipRadio -> "zip"
                 R.id.tarXzRadio -> "tar.xz"
-                R.id.sevenZRadio -> "7z"
                 else -> throw AssertionError(checkedId)
             }
             return "${super.name}.$extension"
@@ -78,7 +77,7 @@ class CreateArchiveDialogFragment : FileNameDialogFragment() {
     private val isPasswordSupported: Boolean
         get() = when (val checkedId = binding.typeGroup.checkedRadioButtonId) {
             R.id.zipRadio -> true
-            R.id.tarXzRadio, R.id.sevenZRadio -> false
+            R.id.tarXzRadio -> false
             else -> throw AssertionError(checkedId)
         }
 
@@ -90,7 +89,6 @@ class CreateArchiveDialogFragment : FileNameDialogFragment() {
         val (format, filter) = when (val checkedId = binding.typeGroup.checkedRadioButtonId) {
             R.id.zipRadio -> Archive.FORMAT_ZIP to Archive.FILTER_NONE
             R.id.tarXzRadio -> Archive.FORMAT_TAR to Archive.FILTER_XZ
-            R.id.sevenZRadio -> Archive.FORMAT_7ZIP to Archive.FILTER_NONE
             else -> throw AssertionError(checkedId)
         }
         val password = if (isPasswordSupported) {

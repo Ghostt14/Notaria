@@ -58,6 +58,17 @@
             android:layout_gravity="end|bottom"
             android:background="@drawable/badge_background_18dp"
             android:duplicateParentState="true" />
+        <ImageView
+            android:id="@+id/checkImage"
+            android:layout_width="@dimen/large_icon_size"
+            android:layout_height="@dimen/large_icon_size"
+            android:layout_gravity="center"
+            android:background="?attr/colorSurface"
+            android:importantForAccessibility="no"
+            android:padding="6dp"
+            android:src="@drawable/check_box_icon_24dp"
+            android:visibility="gone" />
+
 
         <me.zhanghai.android.files.ui.DisabledAlphaImageView
             android:layout_width="@dimen/badge_size"

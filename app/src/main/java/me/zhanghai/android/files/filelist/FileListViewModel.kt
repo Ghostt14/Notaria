@@ -39,10 +39,25 @@ class FileListViewModel : ViewModel() {
     val currentPathLiveData = trailLiveData.map { it.currentPath }
 
     // Notaria: whether this tab currently shows the Home screen instead of a folder.
+    // Whether the current folder was reached from Home, so that back returns there.
+    var cameFromHome = false
+
+    val isSettingsLiveData = MutableLiveData(false)
+    var isSettings: Boolean
+        get() = isSettingsLiveData.value == true
+        set(value) {
+            if (isSettingsLiveData.value != value) {
+                isSettingsLiveData.value = value
+            }
+        }
+
     val isHomeLiveData = MutableLiveData(false)
     var isHome: Boolean
         get() = isHomeLiveData.value == true
         set(value) {
+            if (value) {
+                isSettings = false
+            }
             if (isHomeLiveData.value != value) {
                 isHomeLiveData.value = value
             }

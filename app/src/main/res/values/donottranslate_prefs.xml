@@ -85,4 +85,29 @@
     <string name="pref_key_open_tabs">key_open_tabs</string>
     <string name="pref_key_file_list_scale">key_file_list_scale</string>
     <integer name="pref_default_value_file_list_scale">100</integer>
+    <string name="pref_key_theme_seed">key_theme_seed</string>
+    <integer name="pref_default_value_theme_seed">0</integer>
+    <string name="pref_key_theme_mode">key_theme_mode</string>
+    <string name="pref_key_theme_color_seed">key_theme_color_seed</string>
+    <string name="pref_key_about_version">key_about_version</string>
+    <string name="notaria_github_url" translatable="false">https://github.com/YOURUSER/Notaria</string>
+    <string name="notaria_license_url" translatable="false">https://www.gnu.org/licenses/gpl-3.0.html</string>
+    <string-array name="pref_entry_values_theme_mode">
+        <item>system</item>
+        <item>light</item>
+        <item>dark</item>
+        <item>black</item>
+    </string-array>
+    <string-array name="pref_entry_values_theme_color">
+        <item>0</item>
+        <item>-14776091</item>
+        <item>-16742021</item>
+        <item>-12345273</item>
+        <item>-291840</item>
+        <item>-1754827</item>
+        <item>-2614432</item>
+        <item>-7461718</item>
+        <item>-9614271</item>
+        <item>-10453621</item>
+    </string-array>
 </resources>

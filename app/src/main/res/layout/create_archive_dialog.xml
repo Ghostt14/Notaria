@@ -54,16 +54,6 @@
                     android:textAlignment="viewStart"
                     android:textAppearance="?textAppearanceListItem" />
 
-                <RadioButton
-                    android:id="@+id/sevenZRadio"
-                    android:layout_width="0dp"
-                    android:layout_height="wrap_content"
-                    android:minHeight="@dimen/dense_single_line_list_item_height"
-                    android:layout_weight="1"
-                    android:text="@string/file_create_archive_type_7z"
-                    android:textAlignment="viewStart"
-                    android:textAppearance="?textAppearanceListItem"
-                    android:visibility="@integer/create_archive_type_seven_z_visibility" />
             </me.zhanghai.android.files.filelist.CreateArchiveTypeRadioGroup>
 
             <com.google.android.material.textfield.TextInputLayout

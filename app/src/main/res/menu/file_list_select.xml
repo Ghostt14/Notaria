@@ -1,10 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
 
-<!--
-  ~ Copyright (c) 2018 Hai Zhang <dreaming.in.code.zh@gmail.com>
-  ~ All Rights Reserved.
-  -->
-
 <menu
     xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
@@ -12,66 +7,58 @@
     tools:ignore="AlwaysShowAction">
 
     <item
-        android:id="@+id/action_cut"
-        android:alphabeticShortcut="x"
-        android:icon="@drawable/cut_icon_control_normal_24dp"
+        android:id="@+id/action_restore"
+        android:icon="@drawable/restore_icon_control_normal_24dp"
         android:orderInCategory="100"
-        android:title="@string/cut"
+        android:title="@string/trash_restore"
         app:showAsAction="always" />
-
     <item
         android:id="@+id/action_copy"
-        android:alphabeticShortcut="c"
         android:icon="@drawable/copy_icon_control_normal_24dp"
         android:orderInCategory="100"
         android:title="@string/copy"
         app:showAsAction="always" />
-
     <item
         android:id="@+id/action_delete"
         android:icon="@drawable/delete_icon_control_normal_24dp"
         android:orderInCategory="100"
         android:title="@string/delete"
         app:showAsAction="always" />
-
-    <item
-        android:id="@+id/action_restore"
-        android:icon="@drawable/restore_icon_control_normal_24dp"
-        android:orderInCategory="100"
-        android:title="@string/trash_restore"
-        app:showAsAction="always" />
-
     <item
         android:id="@+id/action_share"
         android:icon="@drawable/share_icon_control_normal_24dp"
         android:orderInCategory="100"
         android:title="@string/share"
         app:showAsAction="always" />
-
     <item
         android:id="@+id/action_rename"
         android:icon="@drawable/edit_icon_control_normal_24dp"
         android:orderInCategory="100"
         android:title="@string/rename"
         app:showAsAction="always" />
-
-    <item
-        android:id="@+id/action_extract"
-        android:orderInCategory="100"
-        android:title="@string/file_list_select_action_extract"
-        app:showAsAction="never" />
-
     <item
         android:id="@+id/action_archive"
+        android:icon="@drawable/archive_icon_control_normal_24dp"
         android:orderInCategory="100"
         android:title="@string/file_list_select_action_archive"
-        app:showAsAction="never" />
-
-
+        app:showAsAction="always" />
+    <item
+        android:id="@+id/action_extract"
+        android:icon="@drawable/extract_icon_control_normal_24dp"
+        android:orderInCategory="100"
+        android:title="@string/file_list_select_action_extract"
+        app:showAsAction="always" />
     <item
         android:id="@+id/action_select_all"
-        android:alphabeticShortcut="a"
+        android:icon="@drawable/select_all_icon_control_normal_24dp"
         android:orderInCategory="100"
         android:title="@string/select_all"
+        app:showAsAction="always" />
+    <item
+        android:id="@+id/action_cut"
+        android:icon="@drawable/cut_icon_control_normal_24dp"
+        android:orderInCategory="100"
+        android:title="@string/cut"
+        android:visible="false"
         app:showAsAction="never" />
 </menu>

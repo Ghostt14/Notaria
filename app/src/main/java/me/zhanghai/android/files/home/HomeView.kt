@@ -30,12 +30,17 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import coil.load
 import me.zhanghai.android.files.R
+import me.zhanghai.android.files.settings.Settings
 import me.zhanghai.android.files.trash.TrashManager
+import me.zhanghai.android.files.util.valueCompat
 import java.io.File
 
 class HomeView(context: Context) : ScrollView(context) {
     var onOpenDirectory: (File) -> Unit = {}
+    var onOpenFile: (File) -> Unit = {}
+    var onOpenStorage: (java8.nio.file.Path) -> Unit = {}
 
     private val density = resources.displayMetrics.density
     private fun dp(value: Int) = (value * density).toInt()
@@ -49,6 +54,13 @@ class HomeView(context: Context) : ScrollView(context) {
     private val totalText = TextView(context)
     private val bar = StorageBar(context)
     private val rows = LinearLayout(context).apply { orientation = LinearLayout.VERTICAL }
+    private val recentRow = LinearLayout(context).apply { orientation = LinearLayout.HORIZONTAL }
+    private val recentSection = LinearLayout(context).apply {
+        orientation = LinearLayout.VERTICAL
+        visibility = View.GONE
+    }
+    private val networkRows = LinearLayout(context).apply { orientation = LinearLayout.VERTICAL }
+    private lateinit var networkCard: View
     private var loaded = false
 
     private enum class Category(
@@ -75,18 +87,28 @@ class HomeView(context: Context) : ScrollView(context) {
     }
 
     private val surface =
-        MaterialColors.getColor(this, com.google.android.material.R.attr.colorSurfaceContainer)
+        MaterialColors.getColor(
+            this, com.google.android.material.R.attr.colorSurfaceContainer, 0xFFEFEFF4.toInt()
+        )
     private val onSurface =
-        MaterialColors.getColor(this, com.google.android.material.R.attr.colorOnSurface)
+        MaterialColors.getColor(
+            this, com.google.android.material.R.attr.colorOnSurface, 0xFF1C1B1F.toInt()
+        )
     private val onSurfaceVariant =
-        MaterialColors.getColor(this, com.google.android.material.R.attr.colorOnSurfaceVariant)
+        MaterialColors.getColor(
+            this, com.google.android.material.R.attr.colorOnSurfaceVariant, 0xFF49454F.toInt()
+        )
 
     init {
         isFillViewport = true
         clipToPadding = false
         addView(content)
-        content.addView(buildUsageCard(), cardParams())
+        // Order: recent files, categories, NAS / cloud (only when connected), usage.
+        content.addView(buildRecentSection(), cardParams())
         content.addView(buildQuickAccessCard(), cardParams())
+        networkCard = buildNetworkCard().also { it.visibility = View.GONE }
+        content.addView(networkCard, cardParams())
+        content.addView(buildUsageCard(), cardParams())
     }
 
     private fun cardParams() = LinearLayout.LayoutParams(
@@ -100,6 +122,139 @@ class HomeView(context: Context) : ScrollView(context) {
             cornerRadius = dp(28).toFloat()
         }
         setPadding(dp(20), dp(20), dp(20), dp(16))
+    }
+
+    private fun buildRecentSection(): View = recentSection.apply {
+        addView(TextView(context).apply {
+            setText(R.string.home_recent)
+            setTextColor(onSurface)
+            setTextSize(TypedValue.COMPLEX_UNIT_SP, 16f)
+            setTypeface(typeface, Typeface.BOLD)
+            setPadding(dp(8), 0, 0, dp(8))
+        })
+        addView(android.widget.HorizontalScrollView(context).apply {
+            isHorizontalScrollBarEnabled = false
+            clipToPadding = false
+            addView(recentRow)
+        })
+    }
+
+    private fun buildNetworkCard(): View = card().apply {
+        addView(TextView(context).apply {
+            setText(R.string.home_network)
+            setTextColor(onSurface)
+            setTextSize(TypedValue.COMPLEX_UNIT_SP, 16f)
+            setTypeface(typeface, Typeface.BOLD)
+            setPadding(0, 0, 0, dp(4))
+        })
+        addView(networkRows)
+    }
+
+    private fun showRecent(files: List<RecentFile>) {
+        recentSection.visibility = if (files.isEmpty()) View.GONE else View.VISIBLE
+        recentRow.removeAllViews()
+        files.forEach { recent ->
+            val tile = LinearLayout(context).apply {
+                orientation = LinearLayout.VERTICAL
+                gravity = Gravity.CENTER_HORIZONTAL
+                background = GradientDrawable().apply {
+                    setColor(surface)
+                    cornerRadius = dp(20).toFloat()
+                }
+                setPadding(dp(8), dp(12), dp(8), dp(10))
+                isClickable = true
+                setOnClickListener { onOpenFile(recent.file) }
+            }
+            val icon = ImageView(context).apply {
+                scaleType = ImageView.ScaleType.CENTER_CROP
+                setImageResource(R.drawable.file_icon_white_24dp)
+                imageTintList = ColorStateList.valueOf(onSurfaceVariant)
+            }
+            if (recent.isImage) {
+                icon.imageTintList = null
+                icon.load(recent.file)
+            }
+            tile.addView(icon, LinearLayout.LayoutParams(dp(72), dp(72)))
+            tile.addView(TextView(context).apply {
+                text = recent.file.name
+                maxLines = 2
+                ellipsize = android.text.TextUtils.TruncateAt.MIDDLE
+                gravity = Gravity.CENTER
+                setTextColor(onSurface)
+                setTextSize(TypedValue.COMPLEX_UNIT_SP, 12f)
+                setPadding(0, dp(8), 0, 0)
+            }, LinearLayout.LayoutParams(dp(96), LayoutParams.WRAP_CONTENT))
+            recentRow.addView(tile, LinearLayout.LayoutParams(
+                LayoutParams.WRAP_CONTENT, LayoutParams.WRAP_CONTENT
+            ).apply { marginEnd = dp(10) })
+        }
+    }
+
+    private fun showNetwork() {
+        val storages = Settings.STORAGES.valueCompat.filter {
+            it !is me.zhanghai.android.files.storage.FileSystemRoot &&
+                it !is me.zhanghai.android.files.storage.PrimaryStorageVolume &&
+                it !is me.zhanghai.android.files.storage.ExternalStorageShortcut &&
+                it.path != null
+        }
+        networkCard.visibility = if (storages.isEmpty()) View.GONE else View.VISIBLE
+        networkRows.removeAllViews()
+        storages.forEach { storage ->
+            val row = LinearLayout(context).apply {
+                orientation = LinearLayout.HORIZONTAL
+                gravity = Gravity.CENTER_VERTICAL
+                setPadding(0, dp(10), 0, dp(10))
+                isClickable = true
+                setOnClickListener { storage.path?.let(onOpenStorage) }
+            }
+            row.addView(ImageView(context).apply {
+                setImageResource(
+                    if (storage is me.zhanghai.android.files.storage.DocumentTree) {
+                        R.drawable.cloud_icon_white_24dp
+                    } else {
+                        R.drawable.nas_icon_white_24dp
+                    }
+                )
+                imageTintList = ColorStateList.valueOf(onSurfaceVariant)
+            }, LinearLayout.LayoutParams(dp(28), dp(28)).apply { marginEnd = dp(16) })
+            row.addView(TextView(context).apply {
+                text = storage.getName(context)
+                setTextColor(onSurface)
+                setTextSize(TypedValue.COMPLEX_UNIT_SP, 16f)
+            }, LinearLayout.LayoutParams(0, LayoutParams.WRAP_CONTENT, 1f))
+            networkRows.addView(row)
+        }
+    }
+
+    private class RecentFile(val file: File, val isImage: Boolean)
+
+    private fun queryRecent(): List<RecentFile> {
+        val result = mutableListOf<RecentFile>()
+        runCatching {
+            context.contentResolver.query(
+                MediaStore.Files.getContentUri("external"),
+                arrayOf(
+                    MediaStore.Files.FileColumns.DATA, MediaStore.Files.FileColumns.MIME_TYPE
+                ),
+                "${MediaStore.Files.FileColumns.MIME_TYPE} IS NOT NULL",
+                null,
+                "${MediaStore.Files.FileColumns.DATE_MODIFIED} DESC"
+            )?.use { cursor ->
+                while (cursor.moveToNext() && result.size < 20) {
+                    val path = cursor.getString(0) ?: continue
+                    if ("/." in path || "/Android/" in path) {
+                        continue
+                    }
+                    val file = File(path)
+                    if (!file.isFile) {
+                        continue
+                    }
+                    val mime = cursor.getString(1) ?: ""
+                    result += RecentFile(file, mime.startsWith("image/"))
+                }
+            }
+        }
+        return result
     }
 
     private fun buildUsageCard(): View = card().apply {
@@ -196,7 +351,11 @@ class HomeView(context: Context) : ScrollView(context) {
 
     /** Loads (or reloads) the numbers. Cheap to call on every show. */
     fun refresh(scope: CoroutineScope) {
+        showNetwork()
         scope.launch {
+            // Recent files first: they are quick and sit at the top.
+            val recent = withContext(Dispatchers.IO) { queryRecent() }
+            showRecent(recent)
             val stats = withContext(Dispatchers.IO) { computeStats() }
             showStats(stats)
         }
@@ -299,7 +458,7 @@ class HomeView(context: Context) : ScrollView(context) {
         private var total = 1L
         private var segments: List<Pair<Long, Int>> = emptyList()
         private val trackColor = MaterialColors.getColor(
-            this, com.google.android.material.R.attr.colorSurfaceVariant
+            this, com.google.android.material.R.attr.colorSurfaceVariant, 0xFFE0E0E0.toInt()
         )
 
         fun set(total: Long, segments: List<Pair<Long, Int>>) {

@@ -16,7 +16,6 @@ import androidx.annotation.StringRes
 import java8.nio.file.Path
 import java8.nio.file.Paths
 import me.zhanghai.android.files.R
-import me.zhanghai.android.files.about.AboutActivity
 import me.zhanghai.android.files.compat.getDescriptionCompat
 import me.zhanghai.android.files.compat.isPrimaryCompat
 import me.zhanghai.android.files.compat.pathCompat
@@ -24,14 +23,12 @@ import me.zhanghai.android.files.file.JavaFile
 import me.zhanghai.android.files.file.asFileSize
 import me.zhanghai.android.files.trash.TrashManager
 import me.zhanghai.android.files.settings.Settings
-import me.zhanghai.android.files.settings.SettingsActivity
 import me.zhanghai.android.files.settings.StandardDirectoryListActivity
 import me.zhanghai.android.files.storage.AddStorageDialogActivity
 import me.zhanghai.android.files.storage.FileSystemRoot
 import me.zhanghai.android.files.storage.Storage
 import me.zhanghai.android.files.storage.StorageVolumeListLiveData
 import me.zhanghai.android.files.util.createIntent
-import me.zhanghai.android.files.app.EXTRA_SLIDE
 import me.zhanghai.android.files.util.isMounted
 import me.zhanghai.android.files.util.putArgs
 import me.zhanghai.android.files.util.supportsExternalStorageManager
@@ -75,7 +72,7 @@ private val storageItems: List<NavigationItem>
 
 private abstract class PathItem(val path: Path) : NavigationItem() {
     override fun isChecked(listener: Listener): Boolean =
-        !listener.isHomeShown && listener.currentPath == path
+        !listener.isHomeShown && !listener.isSettingsShown && listener.currentPath == path
 
     override fun onClick(listener: Listener) {
         if (this is NavigationRoot) {
@@ -153,9 +150,20 @@ private class StorageVolumeItem(
     override val id: Long
         get() = storageVolume.hashCode().toLong()
 
+    // Notaria: pick an icon that matches the kind of device (SD card, USB stick, disk).
     override val iconRes: Int
         @DrawableRes
-        get() = R.drawable.sd_card_icon_white_24dp
+        get() {
+            val description = storageVolume.getDescription(me.zhanghai.android.files.app.application)
+                .lowercase()
+            return when {
+                "usb" in description || "otg" in description -> R.drawable.usb_icon_white_24dp
+                "ssd" in description || "hdd" in description || "disk" in description ||
+                    "drive" in description || "disco" in description ||
+                    "unidad" in description -> R.drawable.hard_drive_icon_white_24dp
+                else -> R.drawable.sd_card_icon_white_24dp
+            }
+        }
 
     override fun getTitle(context: Context): String = storageVolume.getDescriptionCompat(context)
 
@@ -383,7 +391,8 @@ private class TrashItem : NavigationItem() {
     override fun getTitle(context: Context): String = context.getString(R.string.trash_title)
 
     override fun isChecked(listener: Listener): Boolean =
-        !listener.isHomeShown && TrashManager.isInTrash(listener.currentPath)
+        !listener.isHomeShown && !listener.isSettingsShown &&
+            TrashManager.isInTrash(listener.currentPath)
 
     override fun onClick(listener: Listener) {
         TrashManager.trashDir.mkdirs()
@@ -393,17 +402,25 @@ private class TrashItem : NavigationItem() {
 }
 
 private val menuItems: List<NavigationItem>
-    @Size(2)
-    get() = listOf(
-        IntentMenuItem(
-            R.drawable.settings_icon_white_24dp, R.string.navigation_settings,
-            SettingsActivity::class.createIntent().putExtra(EXTRA_SLIDE, true)
-        ),
-        IntentMenuItem(
-            R.drawable.about_icon_white_24dp, R.string.navigation_about,
-            AboutActivity::class.createIntent().putExtra(EXTRA_SLIDE, true)
-        )
-    )
+    @Size(1)
+    get() = listOf(SettingsItem())
+
+private class SettingsItem : NavigationItem() {
+    override val id: Long = R.string.navigation_settings.toLong()
+
+    @DrawableRes
+    override val iconRes: Int = R.drawable.settings_icon_white_24dp
+
+    override fun getTitle(context: Context): String =
+        context.getString(R.string.navigation_settings)
+
+    override fun isChecked(listener: Listener): Boolean = listener.isSettingsShown
+
+    override fun onClick(listener: Listener) {
+        listener.showSettings()
+        listener.closeNavigationDrawer()
+    }
+}
 
 private abstract class MenuItem(
     @DrawableRes override val iconRes: Int,

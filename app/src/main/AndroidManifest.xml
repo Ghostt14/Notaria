@@ -373,5 +373,12 @@
 
         <receiver android:name="me.zhanghai.android.files.filejob.FileJobReceiver" />
 
+
+        <activity
+            android:name="me.zhanghai.android.files.app.CrashActivity"
+            android:exported="false"
+            android:label="Notaria crash report"
+            android:process=":crash"
+            android:theme="@android:style/Theme.DeviceDefault.Light.NoActionBar" />
     </application>
 </manifest>

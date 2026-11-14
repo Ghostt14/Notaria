@@ -16,6 +16,7 @@ lateinit var application: Application private set
 class AppProvider : ContentProvider() {
     override fun onCreate(): Boolean {
         application = context as Application
+        CrashHandler.install(application)
         appInitializers.forEach { it() }
         return true
     }

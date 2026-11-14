@@ -678,7 +678,7 @@
     <string name="storage_edit_webdav_server_add">Add</string>
 
     <string name="navigation_storage_subtitle_format">%1$s free of %2$s</string>
-    <string name="navigation_add_storage">Connect to NAS or network…</string>
+    <string name="navigation_add_storage">Add NAS or cloud…</string>
     <string name="navigation_standard_directory_alarms">Alarms</string>
     <string name="navigation_standard_directory_dcim">DCIM</string>
     <string name="navigation_standard_directory_documents">Documents</string>
@@ -838,4 +838,44 @@
         <item quantity="one">%d item</item>
         <item quantity="other">%d items</item>
     </plurals>
+    <string name="settings_theme_mode_title">Theme</string>
+    <string name="settings_theme_color_seed_title">Main color</string>
+    <string name="settings_about_title">About</string>
+    <string name="settings_version_title">Version</string>
+    <string name="settings_github_title">GitHub</string>
+    <string name="settings_github_summary">Source code and updates</string>
+    <string name="settings_license_title">License</string>
+    <string name="settings_license_summary">GNU General Public License v3.0</string>
+    <string-array name="settings_theme_mode_entries">
+        <item>System</item>
+        <item>Light</item>
+        <item>Dark</item>
+        <item>Pure black</item>
+    </string-array>
+    <string-array name="settings_theme_color_entries">
+        <item>System colors</item>
+        <item>Blue</item>
+        <item>Teal</item>
+        <item>Green</item>
+        <item>Orange</item>
+        <item>Red</item>
+        <item>Pink</item>
+        <item>Purple</item>
+        <item>Brown</item>
+        <item>Gray</item>
+    </string-array>
+    <string name="file_list_action_sort_and_view">Sort and view</string>
+    <string name="file_list_sort_by">Sort by</string>
+    <string name="file_list_view_as">View</string>
+    <string name="file_list_size">Size</string>
+    <string name="file_list_copy_to_clipboard">Copy to clipboard</string>
+    <string name="file_list_clipboard_copied">Copied, ready to paste in other apps</string>
+    <string name="file_list_clipboard_failed">Could not copy to the clipboard</string>
+    <string name="storage_add_storage_nas">NAS or computer on my network</string>
+    <string name="storage_add_storage_google_drive">Google Drive</string>
+    <string name="storage_add_storage_onedrive">OneDrive</string>
+    <string name="storage_add_storage_other_cloud">Other cloud or app folder</string>
+    <string name="storage_add_storage_more">More options (FTP, SFTP, WebDAV…)</string>
+    <string name="home_recent">Recent</string>
+    <string name="home_network">NAS and cloud</string>
 </resources>

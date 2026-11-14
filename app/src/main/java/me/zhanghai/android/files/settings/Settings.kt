@@ -111,6 +111,12 @@ object Settings {
             ThemeColor::class.java
         )
 
+    // Notaria: seed color for the Material 3 palette; 0 = system colors.
+    val THEME_SEED: SettingLiveData<Int> =
+        IntegerSettingLiveData(
+            R.string.pref_key_theme_seed, R.integer.pref_default_value_theme_seed
+        )
+
     val MATERIAL_DESIGN_3: SettingLiveData<Boolean> =
         BooleanSettingLiveData(
             R.string.pref_key_material_design_3, R.bool.pref_default_value_material_design_3
